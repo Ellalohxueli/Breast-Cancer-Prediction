@@ -7,6 +7,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { FiHome, FiCalendar, FiUsers, FiMessageSquare, FiFileText, FiLogOut, FiGrid, FiBell, FiSun, FiMoon, FiUser, FiMessageCircle, FiChevronDown, FiClock, FiMoreVertical } from 'react-icons/fi';
+import useCheckCookies from '@/controller/UseCheckCookie';
 
 const poppins = Poppins({
     weight: ['400', '500', '600', '700'],
@@ -20,6 +21,10 @@ export default function DoctorDashboard() {
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [doctorName, setDoctorName] = useState('');
     const [profileImage, setProfileImage] = useState('');
+
+    // Check Cookies Token
+    useCheckCookies();
+
     const currentDate = new Date().toLocaleDateString('en-US', { 
         weekday: 'long', 
         year: 'numeric', 
@@ -49,6 +54,7 @@ export default function DoctorDashboard() {
             localStorage.removeItem('name');
             localStorage.removeItem('image');
             localStorage.removeItem('userType');
+            sessionStorage.removeItem('token');
             // Redirect to login page
             router.push('/login');
         } catch (error: any) {
@@ -57,6 +63,7 @@ export default function DoctorDashboard() {
             localStorage.removeItem('name');
             localStorage.removeItem('image');
             localStorage.removeItem('userType');
+            sessionStorage.removeItem('token');
             router.push('/login');
         }
     };
