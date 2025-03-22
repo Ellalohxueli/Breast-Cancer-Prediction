@@ -13,16 +13,15 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        // Create or update the appointment availability
-        const availability = await AppointmentAvailability.findOneAndUpdate(
-            { doctorName },
+        // Create the appointment availability
+        const availability = await AppointmentAvailability.create(
             {
+                doctorName,
                 duration,
                 dateRange,
                 weeklySchedule,
                 excludedDates
             },
-            { upsert: true, new: true }
         );
 
         return NextResponse.json({ success: true, availability });

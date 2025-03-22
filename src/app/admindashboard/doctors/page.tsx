@@ -8,6 +8,7 @@ import { FaUserDoctor } from 'react-icons/fa6';
 import { FaSearch, FaPlus, FaEdit, FaTrash, FaEye } from 'react-icons/fa';
 import { usePathname } from 'next/navigation';
 import axios from 'axios';
+import useCheckCookies from '@/controller/UseCheckCookie';
 
 const DoctorsPage = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -53,6 +54,8 @@ const DoctorsPage = () => {
   const [doctors, setDoctors] = useState([]);
   const [filteredDoctors, setFilteredDoctors] = useState([]);
 
+  useCheckCookies();
+
   const daysOfWeek = [
     "Monday",
     "Tuesday",
@@ -85,11 +88,6 @@ const DoctorsPage = () => {
 
   const toggleTheme = () => {
     setIsDarkMode(!isDarkMode);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('firstname');
-    window.location.href = '/login';
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -463,6 +461,16 @@ const DoctorsPage = () => {
   const handleViewDoctor = (doctor: any) => {
     setViewDoctor(doctor);
     setIsViewDoctorModalOpen(true);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await axios.get("/api/users/logout");
+      localStorage.removeItem("firstname");
+      window.location.href = "/login";
+    } catch (error) {
+        console.error("Error logging out:", error);
+    }
   };
 
   return (

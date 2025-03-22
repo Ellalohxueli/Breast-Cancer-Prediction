@@ -23,6 +23,7 @@ import {
     FiClock,
     FiMoreVertical,
 } from "react-icons/fi";
+import useCheckCookies from "@/controller/UseCheckCookie";
 
 const poppins = Poppins({
     weight: ["400", "500", "600", "700"],
@@ -49,6 +50,9 @@ export default function AppointmentsPage() {
     const [customDuration, setCustomDuration] = useState<string>("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitMessage, setSubmitMessage] = useState({ type: "", message: "" });
+
+    // Check Cookies Token
+    useCheckCookies();
 
     const currentDate = new Date().toLocaleDateString("en-US", {
         weekday: "long",
@@ -209,12 +213,14 @@ export default function AppointmentsPage() {
             localStorage.removeItem("name");
             localStorage.removeItem("image");
             localStorage.removeItem("userType");
+            sessionStorage.removeItem('token');
             router.push("/login");
         } catch (error: any) {
             console.log(error.message);
             localStorage.removeItem("name");
             localStorage.removeItem("image");
             localStorage.removeItem("userType");
+            sessionStorage.removeItem('token');
             router.push("/login");
         }
     };

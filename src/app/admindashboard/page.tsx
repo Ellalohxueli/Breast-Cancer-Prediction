@@ -5,6 +5,8 @@ import { FiHome, FiUsers, FiCalendar, FiSettings, FiFileText, FiUserPlus, FiSun,
 import { FaUserDoctor } from 'react-icons/fa6';
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import useCheckCookies from '@/controller/UseCheckCookie';
+import axios from 'axios';
 
 interface Doctor {
     _id: string;
@@ -26,6 +28,8 @@ export default function AdminDashboard() {
     const [doctors, setDoctors] = useState<Doctor[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const pathname = usePathname();
+
+    useCheckCookies();
 
     useEffect(() => {
         try {
@@ -71,11 +75,15 @@ export default function AdminDashboard() {
     const toggleTheme = () => {
         setIsDarkMode(!isDarkMode);
     };
-
-    const handleLogout = () => {
-        // Add logout logic here
-        localStorage.removeItem('firstname');
-        window.location.href = '/login'; // Redirect to login page
+    
+    const handleLogout = async () => {
+        try {
+          await axios.get("/api/users/logout");
+          localStorage.removeItem("firstname");
+          window.location.href = "/login";
+        } catch (error) {
+            console.error("Error logging out:", error);
+        }
     };
 
     return (
