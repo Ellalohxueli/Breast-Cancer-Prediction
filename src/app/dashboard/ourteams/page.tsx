@@ -118,7 +118,7 @@ export default function OurTeamsPage() {
                                 </li>
                                 <li>
                                     <Link 
-                                        href="#" 
+                                        href="/dashboard/resources" 
                                         className="text-gray-600 hover:text-pink-600 font-medium"
                                     >
                                         Patient Resources

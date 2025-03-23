@@ -1,22 +1,81 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Poppins } from 'next/font/google';
 import { BiMessageRounded } from 'react-icons/bi';
-import { FaRegBell, FaRegUser } from 'react-icons/fa';
-import { TbStethoscope } from 'react-icons/tb';
-import { GiMicroscope } from 'react-icons/gi';
+import { FaRegBell, FaRegUser, FaUserMd, FaHandHoldingMedical, FaPhone, FaEnvelope, FaMapMarkerAlt, FaFacebookF, FaTwitter, FaInstagram, FaLinkedinIn, FaXRay, FaStethoscope, FaMicroscope, FaVial, FaNotesMedical, FaFirstAid, FaPrescription, FaHeartbeat, FaHospital, FaHandHolding, FaComments, FaUsers, FaUserNurse, FaShieldAlt, FaChartLine, FaClinicMedical, FaHospitalUser, FaCalendar } from 'react-icons/fa';
+import { TbStethoscope, TbReportMedical, TbMicroscope, TbHeartRateMonitor, TbActivity, TbBrain, TbDna2, TbMedicineSyrup, TbPill, TbVaccine, TbHeartPlus, TbNurse } from 'react-icons/tb';
+import { GiMicroscope, GiMedicalDrip, GiMedicines, GiHealthNormal, GiHealing } from 'react-icons/gi';
 import { RiMentalHealthLine } from 'react-icons/ri';
-import { HiOutlineUserGroup } from 'react-icons/hi';
-import { FaPhone, FaEnvelope, FaMapMarkerAlt, FaFacebookF, FaTwitter, FaInstagram, FaLinkedinIn } from 'react-icons/fa';
+import { IoMdPulse } from 'react-icons/io';
+import { FiSearch } from 'react-icons/fi';
+import axios from 'axios';
 
 const poppins = Poppins({
     weight: ['400', '500', '600', '700'],
     subsets: ['latin'],
 });
+
+// Add these types
+type ServiceContent = {
+    subheader: string;
+    description: string;
+};
+
+type Service = {
+    _id: string;
+    name: string;
+    icon: string;
+    contents: ServiceContent[];
+    status: 'active' | 'inactive';
+};
+
+// Update the renderIcon function to map the service names to their icons
+const renderIcon = (iconName: string) => {
+    console.log('Icon name from database:', iconName);
+    const iconProps = { className: "h-6 w-6 text-pink-600" };
+    const iconMapping: { [key: string]: React.ReactElement } = {
+        // Screening & Detection
+        'Mammogram': <FaXRay {...iconProps} />,
+        'Clinical Exam': <FaStethoscope {...iconProps} />,
+        'Early Detection': <FiSearch {...iconProps} />,
+        'Regular Checkup': <FaCalendar {...iconProps} />,
+
+        // Diagnosis
+        'Biopsy': <FaMicroscope {...iconProps} />,
+        'Lab Tests': <FaVial {...iconProps} />,
+        'Medical Report': <FaNotesMedical {...iconProps} />,
+        'Diagnostic Imaging': <FaXRay {...iconProps} />,
+
+        // Treatment
+        'Surgery': <FaFirstAid {...iconProps} />,
+        'Chemotherapy': <FaPrescription {...iconProps} />,
+        'Radiation': <FaHeartbeat {...iconProps} />,
+        'Medical Care': <FaUserMd {...iconProps} />,
+        'Hospital Care': <FaHospital {...iconProps} />,
+
+        // Support Services
+        'Patient Support': <FaHandHolding {...iconProps} />,
+        'Counseling': <FaComments {...iconProps} />,
+        'Support Group': <FaUsers {...iconProps} />,
+        'Care Team': <FaUserNurse {...iconProps} />,
+
+        // Prevention & Wellness
+        'Prevention': <FaShieldAlt {...iconProps} />,
+        'Monitoring': <FaChartLine {...iconProps} />,
+        'Clinical Care': <FaClinicMedical {...iconProps} />,
+        'Patient Care': <FaHospitalUser {...iconProps} />
+    };
+
+    const icon = iconMapping[iconName];
+    if (!icon) {
+        console.log('Icon not found for:', iconName);
+    }
+    return icon || <TbStethoscope {...iconProps} />;
+};
 
 export default function ServicesPage() {
     const router = useRouter();
@@ -24,6 +83,23 @@ export default function ServicesPage() {
     const [notificationCount, setNotificationCount] = useState(5);
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+    const [services, setServices] = useState<Service[]>([]);
+
+    // Add useEffect to fetch services
+    useEffect(() => {
+        const fetchServices = async () => {
+            try {
+                const response = await axios.get('/api/admin/services?status=active');
+                if (response.data.success) {
+                    setServices(response.data.services);
+                }
+            } catch (error) {
+                console.error('Error fetching services:', error);
+            }
+        };
+
+        fetchServices();
+    }, []);
 
     const handleLogout = () => {
         localStorage.removeItem('firstname');
@@ -31,7 +107,7 @@ export default function ServicesPage() {
     };
 
     return (
-        <div className={`min-h-screen bg-gray-50 ${poppins.className}`}>
+        <div className={`flex flex-col min-h-screen bg-gray-50 ${poppins.className}`}>
             {/* Navigation Bar */}
             <div className="w-full bg-white shadow">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -72,7 +148,14 @@ export default function ServicesPage() {
                                         Our Team
                                     </Link>
                                 </li>
-                                <li><a href="#" className="text-gray-600 hover:text-pink-600 font-medium">Patient Resources</a></li>
+                                <li>
+                                    <Link 
+                                        href="/dashboard/resources" 
+                                        className="text-gray-600 hover:text-pink-600 font-medium"
+                                    >
+                                        Patient Resources
+                                    </Link>
+                                </li>
                                 <li>
                                     <a href="#" className="text-gray-600 hover:text-pink-600 relative">
                                         <div className="relative">
@@ -186,259 +269,151 @@ export default function ServicesPage() {
             </div>
 
             {/* Service Categories */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 -mt-8">
-                {/* Screening Services */}
-                <div className="mb-6">
-                    <button 
-                        className="w-full bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-all flex justify-between items-center"
-                        onClick={() => setExpandedCategory(expandedCategory === 'screening' ? null : 'screening')}
-                    >
-                        <div className="flex items-center space-x-4">
-                            <div className="bg-pink-50 p-3 rounded-full">
-                                <TbStethoscope className="h-6 w-6 text-pink-600" />
+            <div className="bg-white flex-grow">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+                    <div className="p-8">
+                        {services.map((service) => (
+                            <div key={service._id} className="mb-8 border-b pb-8 last:border-b-0">
+                                <button 
+                                    className="w-full flex justify-between items-center"
+                                    onClick={() => setExpandedCategory(expandedCategory === service._id ? null : service._id)}
+                                >
+                                    <div className="flex items-center space-x-4">
+                                        <div className="bg-pink-50 p-3 rounded-full">
+                                            {/* Render the icon dynamically */}
+                                            {renderIcon(service.icon)}
+                                        </div>
+                                        <h2 className="text-2xl font-semibold text-gray-900">{service.name}</h2>
+                                    </div>
+                                    <svg 
+                                        className={`w-6 h-6 text-gray-500 transform transition-transform ${expandedCategory === service._id ? 'rotate-180' : ''}`}
+                                        fill="none" 
+                                        stroke="currentColor" 
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                                
+                                {expandedCategory === service._id && (
+                                    <div className="mt-6">
+                                        <div className="grid md:grid-cols-2 gap-6">
+                                            {service.contents.map((content, index) => (
+                                                <div key={index}>
+                                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                                                        {content.subheader}
+                                                    </h3>
+                                                    <div className="text-gray-600 space-y-3">
+                                                        {/* Render the description with markdown formatting */}
+                                                        {content.description.split('\n').map((line, i) => (
+                                                            <p key={i}>{line}</p>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            <h2 className="text-2xl font-semibold text-gray-900">Screening Services</h2>
-                        </div>
-                        <svg 
-                            className={`w-6 h-6 text-gray-500 transform transition-transform ${expandedCategory === 'screening' ? 'rotate-180' : ''}`}
-                            fill="none" 
-                            stroke="currentColor" 
-                            viewBox="0 0 24 24"
-                        >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </button>
-                    
-                    {expandedCategory === 'screening' && (
-                        <div className="mt-4 bg-white p-6 rounded-lg shadow-sm">
-                            <div className="grid md:grid-cols-2 gap-6">
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Mammography Services</h3>
-                                    <ul className="space-y-3 text-gray-600">
-                                        <li>• 3D Digital Mammography</li>
-                                        <li>• Screening Mammograms</li>
-                                        <li>• Diagnostic Mammograms</li>
-                                        <li>• Same-day Results Available</li>
-                                    </ul>
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Ultrasound Screening</h3>
-                                    <ul className="space-y-3 text-gray-600">
-                                        <li>• Breast Ultrasound</li>
-                                        <li>• Automated Whole Breast Ultrasound</li>
-                                        <li>• Expert Radiologist Review</li>
-                                    </ul>
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Preparation Guidelines</h3>
-                                    <ul className="space-y-3 text-gray-600">
-                                        <li>• No deodorant or powder before exam</li>
-                                        <li>• Wear comfortable two-piece clothing</li>
-                                        <li>• Bring previous mammogram records</li>
-                                    </ul>
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Insurance Coverage</h3>
-                                    <p className="text-gray-600 mb-4">We accept most major insurance plans. Contact our financial counselors for detailed coverage information.</p>
-                                    <button className="w-full bg-pink-600 text-white py-2 rounded-md hover:bg-pink-700 transition-colors">
-                                        Schedule Screening
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                        ))}
+                    </div>
                 </div>
+            </div>
 
-                {/* Diagnostic Services */}
-                <div className="mb-6">
-                    <button 
-                        className="w-full bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-all flex justify-between items-center"
-                        onClick={() => setExpandedCategory(expandedCategory === 'diagnostic' ? null : 'diagnostic')}
-                    >
-                        <div className="flex items-center space-x-4">
-                            <div className="bg-pink-50 p-3 rounded-full">
-                                <GiMicroscope className="h-6 w-6 text-pink-600" />
-                            </div>
-                            <h2 className="text-2xl font-semibold text-gray-900">Diagnostic Services</h2>
-                        </div>
-                        <svg 
-                            className={`w-6 h-6 text-gray-500 transform transition-transform ${expandedCategory === 'diagnostic' ? 'rotate-180' : ''}`}
-                            fill="none" 
-                            stroke="currentColor" 
-                            viewBox="0 0 24 24"
-                        >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </button>
+            {/* Insurance & Financial Information Section */}
+            <div className="bg-gray-50 py-16">
+                <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="text-center mb-12">
+                        <h2 className="text-3xl font-bold text-gray-900 mb-4">Insurance & Financial Information</h2>
+                        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                            We work with most major insurance providers and offer various payment options to make your care accessible.
+                        </p>
+                    </div>
 
-                    {expandedCategory === 'diagnostic' && (
-                        <div className="mt-4 bg-white p-6 rounded-lg shadow-sm">
-                            <div className="grid md:grid-cols-2 gap-6">
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Biopsy Procedures</h3>
-                                    <ul className="space-y-3 text-gray-600">
-                                        <li>• Core Needle Biopsy</li>
-                                        <li>• Stereotactic Biopsy</li>
-                                        <li>• Ultrasound-Guided Biopsy</li>
-                                        <li>• Fine Needle Aspiration</li>
-                                    </ul>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                        {/* Accepted Insurance */}
+                        <div className="bg-white p-6 rounded-lg shadow-sm">
+                            <h3 className="text-xl font-semibold text-gray-900 mb-6">Accepted Insurance</h3>
+                            <ul className="space-y-3 text-gray-600">
+                                {[
+                                    'FWD Insurance',
+                                    'Generali',
+                                    'Allianz',
+                                    'AIA',
+                                    'Prudential',
+                                    'Great Eastern',
+                                    'Zurich'
+                                ].map((insurance) => (
+                                    <li key={insurance} className="flex items-center space-x-3">
+                                        <div className="relative">
+                                            <svg 
+                                                className="w-5 h-5 text-pink-600"
+                                                fill="none" 
+                                                stroke="currentColor" 
+                                                viewBox="0 0 24 24"
+                                            >
+                                                {/* Circle */}
+                                                <circle cx="12" cy="12" r="10" strokeWidth="1.5"/>
+                                                {/* Checkmark */}
+                                                <path 
+                                                    strokeLinecap="round" 
+                                                    strokeLinejoin="round" 
+                                                    strokeWidth={1.5}
+                                                    d="M8 12l3 3 5-5" 
+                                                />
+                                            </svg>
+                                        </div>
+                                        <span>{insurance}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+
+                        {/* Financial Assistance */}
+                        <div className="bg-white p-6 rounded-lg shadow-sm">
+                            <div className="bg-pink-50 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                                <svg className="w-6 h-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                            <h3 className="text-xl font-semibold text-gray-900 mb-4">Financial Assistance</h3>
+                            <p className="text-gray-600 mb-4">
+                                We believe that quality care should be accessible to everyone. 
+                                Our financial counsellors will work with you to explore payment options and assistance programs.
+                            </p>
+                            <div className="space-y-3 mt-6">
+                                <div className="flex items-center space-x-3 text-gray-600">
+                                    <FaPhone className="w-4 h-4 text-pink-600" />
+                                    <span>+60 3-1234 5678</span>
                                 </div>
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Genetic Testing</h3>
-                                    <ul className="space-y-3 text-gray-600">
-                                        <li>• BRCA1 and BRCA2 Testing</li>
-                                        <li>• Genetic Counseling</li>
-                                        <li>• Risk Assessment</li>
-                                        <li>• Family History Analysis</li>
-                                    </ul>
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Lab Services</h3>
-                                    <ul className="space-y-3 text-gray-600">
-                                        <li>• Blood Work</li>
-                                        <li>• Pathology Services</li>
-                                        <li>• Hormone Level Testing</li>
-                                        <li>• Quick Result Turnaround</li>
-                                    </ul>
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Insurance Information</h3>
-                                    <p className="text-gray-600 mb-4">Most diagnostic procedures are covered by insurance. Our team will help verify your coverage and explain any out-of-pocket costs.</p>
-                                    <button className="w-full bg-pink-600 text-white py-2 rounded-md hover:bg-pink-700 transition-colors">
-                                        Schedule Consultation
-                                    </button>
+                                <div className="flex items-center space-x-3 text-gray-600">
+                                    <FaEnvelope className="w-4 h-4 text-pink-600" />
+                                    <span>finance@pinkpath.com</span>
                                 </div>
                             </div>
                         </div>
-                    )}
+                    </div>
                 </div>
+            </div>
 
-                {/* Treatment Options */}
-                <div className="mb-6">
-                    <button 
-                        className="w-full bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-all flex justify-between items-center"
-                        onClick={() => setExpandedCategory(expandedCategory === 'treatment' ? null : 'treatment')}
-                    >
-                        <div className="flex items-center space-x-4">
-                            <div className="bg-pink-50 p-3 rounded-full">
-                                <RiMentalHealthLine className="h-6 w-6 text-pink-600" />
-                            </div>
-                            <h2 className="text-2xl font-semibold text-gray-900">Treatment Options</h2>
+            {/* Call-to-Action Section */}
+            <div className="bg-white py-16">
+                <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                    <h2 className="text-3xl font-bold text-gray-900 mb-4">
+                        Ready to Take the Next Step?
+                    </h2>
+                    <p className="text-lg text-gray-600 mb-8">
+                        Schedule your appointment today and let our expert team provide you with the care you deserve.
+                    </p>
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+                        <button className="px-8 py-3 bg-pink-600 text-white rounded-md hover:bg-pink-700 transition-colors text-lg font-medium min-w-[200px]">
+                            Schedule an Appointment
+                        </button>
+                        <div className="flex items-center space-x-3 text-gray-700">
+                            <FaPhone className="w-5 h-5 text-pink-600" />
+                            <span className="text-lg font-medium">Call us at+60 3-1234 5678</span>
                         </div>
-                        <svg 
-                            className={`w-6 h-6 text-gray-500 transform transition-transform ${expandedCategory === 'treatment' ? 'rotate-180' : ''}`}
-                            fill="none" 
-                            stroke="currentColor" 
-                            viewBox="0 0 24 24"
-                        >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </button>
-
-                    {expandedCategory === 'treatment' && (
-                        <div className="mt-4 bg-white p-6 rounded-lg shadow-sm">
-                            <div className="grid md:grid-cols-2 gap-6">
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Surgery Options</h3>
-                                    <ul className="space-y-3 text-gray-600">
-                                        <li>• Lumpectomy</li>
-                                        <li>• Mastectomy</li>
-                                        <li>• Reconstructive Surgery</li>
-                                        <li>• Minimally Invasive Procedures</li>
-                                    </ul>
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Chemotherapy</h3>
-                                    <ul className="space-y-3 text-gray-600">
-                                        <li>• Traditional Chemotherapy</li>
-                                        <li>• Targeted Therapy</li>
-                                        <li>• Hormone Therapy</li>
-                                        <li>• Side Effect Management</li>
-                                    </ul>
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Radiation Therapy</h3>
-                                    <ul className="space-y-3 text-gray-600">
-                                        <li>• External Beam Radiation</li>
-                                        <li>• Internal Radiation</li>
-                                        <li>• Treatment Planning</li>
-                                        <li>• Follow-up Care</li>
-                                    </ul>
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Support Resources</h3>
-                                    <p className="text-gray-600 mb-4">Our comprehensive treatment plans include support services to help you through your journey.</p>
-                                    <button className="w-full bg-pink-600 text-white py-2 rounded-md hover:bg-pink-700 transition-colors">
-                                        Learn More
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Support Services */}
-                <div className="mb-6">
-                    <button 
-                        className="w-full bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-all flex justify-between items-center"
-                        onClick={() => setExpandedCategory(expandedCategory === 'support' ? null : 'support')}
-                    >
-                        <div className="flex items-center space-x-4">
-                            <div className="bg-pink-50 p-3 rounded-full">
-                                <HiOutlineUserGroup className="h-6 w-6 text-pink-600" />
-                            </div>
-                            <h2 className="text-2xl font-semibold text-gray-900">Support Services</h2>
-                        </div>
-                        <svg 
-                            className={`w-6 h-6 text-gray-500 transform transition-transform ${expandedCategory === 'support' ? 'rotate-180' : ''}`}
-                            fill="none" 
-                            stroke="currentColor" 
-                            viewBox="0 0 24 24"
-                        >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </button>
-
-                    {expandedCategory === 'support' && (
-                        <div className="mt-4 bg-white p-6 rounded-lg shadow-sm">
-                            <div className="grid md:grid-cols-2 gap-6">
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Counseling Services</h3>
-                                    <ul className="space-y-3 text-gray-600">
-                                        <li>• Individual Counseling</li>
-                                        <li>• Family Counseling</li>
-                                        <li>• Genetic Counseling</li>
-                                        <li>• Crisis Support</li>
-                                    </ul>
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Support Groups</h3>
-                                    <ul className="space-y-3 text-gray-600">
-                                        <li>• Patient Support Groups</li>
-                                        <li>• Family Support Groups</li>
-                                        <li>• Survivor Network</li>
-                                        <li>• Online Communities</li>
-                                    </ul>
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Wellness Programs</h3>
-                                    <ul className="space-y-3 text-gray-600">
-                                        <li>• Nutrition Counseling</li>
-                                        <li>• Exercise Programs</li>
-                                        <li>• Meditation Classes</li>
-                                        <li>• Art Therapy</li>
-                                    </ul>
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Financial Support</h3>
-                                    <p className="text-gray-600 mb-4">Our financial counselors can help you understand costs, insurance, and available assistance programs.</p>
-                                    <button className="w-full bg-pink-600 text-white py-2 rounded-md hover:bg-pink-700 transition-colors">
-                                        Contact Support
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                    </div>
                 </div>
             </div>
 
@@ -482,7 +457,7 @@ export default function ServicesPage() {
                             <ul className="space-y-2">
                                 <li>
                                     <Link 
-                                        href="/dashboard#top" 
+                                        href="/dashboard" 
                                         className="hover:text-pink-500 transition-colors"
                                     >
                                         About Us
@@ -497,9 +472,12 @@ export default function ServicesPage() {
                                     </Link>
                                 </li>
                                 <li>
-                                    <a href="#" className="hover:text-pink-500 transition-colors">
+                                    <Link 
+                                        href="/dashboard/resources" 
+                                        className="hover:text-pink-500 transition-colors"
+                                    >
                                         Patient Resources
-                                    </a>
+                                    </Link>
                                 </li>
                             </ul>
                         </div>

@@ -3,12 +3,21 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { FiHome, FiUsers, FiCalendar, FiSettings, FiFileText, FiSun, FiMoon, FiBell, FiMessageCircle, FiChevronDown, FiX } from 'react-icons/fi';
+import { FiHome, FiUsers, FiCalendar, FiSettings, FiFileText, FiSun, FiMoon, FiBell, FiMessageCircle, FiChevronDown, FiX, FiChevronRight } from 'react-icons/fi';
 import { FaUserDoctor } from 'react-icons/fa6';
 import { FaSearch, FaPlus, FaEdit, FaTrash, FaEye } from 'react-icons/fa';
 import { usePathname } from 'next/navigation';
 import axios from 'axios';
 import useCheckCookies from '@/controller/UseCheckCookie';
+
+// Add this with your other type definitions
+type NavigationItem = {
+    href: string;
+    icon: React.ReactNode;
+    text: string;
+    custom?: boolean;
+    component?: React.ReactNode;
+};
 
 const DoctorsPage = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -36,6 +45,7 @@ const DoctorsPage = () => {
   const [showEditSuccessMessage, setShowEditSuccessMessage] = useState(false);
   const [isViewDoctorModalOpen, setIsViewDoctorModalOpen] = useState(false);
   const [viewDoctor, setViewDoctor] = useState<any>(null);
+  const [showInfoDropdown, setShowInfoDropdown] = useState(false);
 
   // Define the type for doctor fields
   type DoctorFields = 'name' | 'email' | 'phone' | 'password' | 'confirmPassword';
@@ -473,10 +483,74 @@ const DoctorsPage = () => {
     }
   };
 
+  // Update the navigation section with the new structure
+  const navigationItems: NavigationItem[] = [
+    { href: "/admindashboard", icon: <FiHome className="w-5 h-5 mr-4" />, text: "Dashboard" },
+    { href: "/admindashboard/appointments", icon: <FiCalendar className="w-5 h-5 mr-4" />, text: "Appointments" },
+    { href: "/admindashboard/doctors", icon: <FaUserDoctor className="w-5 h-5 mr-4" />, text: "Doctors" },
+    { href: "/admindashboard/patients", icon: <FiUsers className="w-5 h-5 mr-4" />, text: "Patients" },
+    {
+        href: "/admindashboard/information",
+        icon: <FiFileText className="w-5 h-5 mr-4" />,
+        text: "Information",
+        custom: true,
+        component: (
+            <div className="relative">
+                <div 
+                    onClick={() => setShowInfoDropdown(!showInfoDropdown)}
+                    className={`flex items-center px-4 py-3 rounded-lg transition-colors relative cursor-pointer ${
+                        pathname.includes('/admindashboard/manage-services') || pathname.includes('/admindashboard/manage-resources')
+                            ? isDarkMode 
+                                ? 'text-pink-400'
+                                : 'text-pink-800'
+                            : isDarkMode 
+                                ? 'text-gray-200 hover:bg-gray-700' 
+                                : 'text-gray-700 hover:bg-pink-100'
+                    }`}
+                >
+                    <FiFileText className="w-5 h-5 mr-4" />
+                    <span>Information</span>
+                    <FiChevronRight className={`w-4 h-4 ml-auto transition-transform ${showInfoDropdown ? 'transform rotate-90' : ''}`} />
+                </div>
+
+                {showInfoDropdown && (
+                    <div 
+                        className={`absolute left-full top-0 ml-2 w-48 rounded-md shadow-lg ${
+                            isDarkMode ? 'bg-gray-700' : 'bg-white'
+                        } py-1 z-[110]`}
+                    >
+                        <Link 
+                            href="/admindashboard/manage-services"
+                            className={`block px-4 py-2 text-sm ${
+                                isDarkMode 
+                                    ? 'text-gray-200 hover:bg-gray-600' 
+                                    : 'text-gray-700 hover:bg-pink-50'
+                            }`}
+                        >
+                            Manage Services
+                        </Link>
+                        <Link 
+                            href="/admindashboard/manage-resources"
+                            className={`block px-4 py-2 text-sm ${
+                                isDarkMode 
+                                    ? 'text-gray-200 hover:bg-gray-600' 
+                                    : 'text-gray-700 hover:bg-pink-50'
+                            }`}
+                        >
+                            Manage Resources
+                        </Link>
+                    </div>
+                )}
+            </div>
+        )
+    },
+    { href: "/admindashboard/settings", icon: <FiSettings className="w-5 h-5 mr-4" />, text: "Settings" }
+  ];
+
   return (
     <div className={`flex min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {/* Sidebar - Fixed */}
-      <div className={`w-64 shadow-lg flex flex-col justify-between fixed left-0 top-0 h-screen ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+      <div className={`w-64 shadow-lg flex flex-col justify-between fixed left-0 top-0 h-screen z-[100] ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
         <div>
           <div className="p-6">
             <div className="flex flex-col items-center">
@@ -500,35 +574,32 @@ const DoctorsPage = () => {
           </div>
           <nav className="mt-6">
             <div className="px-4 space-y-2">
-              {[
-                { href: "/admindashboard", icon: <FiHome className="w-5 h-5 mr-4" />, text: "Dashboard" },
-                { href: "/admindashboard/appointments", icon: <FiCalendar className="w-5 h-5 mr-4" />, text: "Appointments" },
-                { href: "/admindashboard/doctors", icon: <FaUserDoctor className="w-5 h-5 mr-4" />, text: "Doctors" },
-                { href: "/admindashboard/patients", icon: <FiUsers className="w-5 h-5 mr-4" />, text: "Patients" },
-                { href: "/admindashboard/information", icon: <FiFileText className="w-5 h-5 mr-4" />, text: "Information" },
-                { href: "/admindashboard/settings", icon: <FiSettings className="w-5 h-5 mr-4" />, text: "Settings" }
-              ].map((item, index) => (
-                <Link 
-                  key={index}
-                  href={item.href}
-                  className={`flex items-center px-4 py-3 rounded-lg transition-colors relative ${
-                    pathname === item.href
-                      ? isDarkMode 
-                        ? 'text-pink-400'
-                        : 'text-pink-800'
-                      : isDarkMode 
-                        ? 'text-gray-200 hover:bg-gray-700' 
-                        : 'text-gray-700 hover:bg-pink-100'
-                  }`}
-                >
-                  {pathname === item.href && (
-                    <div className={`absolute right-0 top-0 h-full w-1 ${
-                      isDarkMode ? 'bg-pink-400' : 'bg-pink-800'
-                    }`}></div>
-                  )}
-                  {item.icon}
-                  <span>{item.text}</span>
-                </Link>
+              {navigationItems.map((item, index) => (
+                item.custom ? (
+                  <div key={index}>{item.component}</div>
+                ) : (
+                  <Link 
+                    key={index}
+                    href={item.href}
+                    className={`flex items-center px-4 py-3 rounded-lg transition-colors relative ${
+                      pathname === item.href
+                        ? isDarkMode 
+                          ? 'text-pink-400'
+                          : 'text-pink-800'
+                        : isDarkMode 
+                          ? 'text-gray-200 hover:bg-gray-700' 
+                          : 'text-gray-700 hover:bg-pink-100'
+                    }`}
+                  >
+                    {pathname === item.href && (
+                      <div className={`absolute right-0 top-0 h-full w-1 ${
+                        isDarkMode ? 'bg-pink-400' : 'bg-pink-800'
+                      }`}></div>
+                    )}
+                    {item.icon}
+                    <span>{item.text}</span>
+                  </Link>
+                )
               ))}
             </div>
           </nav>

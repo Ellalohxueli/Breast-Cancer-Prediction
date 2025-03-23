@@ -21,6 +21,8 @@ import 'swiper/css';
 import 'swiper/css/pagination';
 import Link from 'next/link';
 import axios from 'axios';
+import { FaXRay, FaCalendar, FaVial, FaNotesMedical, FaFirstAid, FaPrescription, FaHeartbeat, FaUserMd, FaHospital, FaHandHolding, FaComments, FaShieldAlt, FaChartLine, FaClinicMedical, FaHospitalUser } from 'react-icons/fa';
+import { FiSearch } from 'react-icons/fi';
 
 const poppins = Poppins({
     weight: ['400', '500', '600', '700'],
@@ -35,12 +37,26 @@ type Doctor = {
     image: string;
 };
 
+type ServiceContent = {
+    subheader: string;
+    description: string;
+};
+
+type Service = {
+    _id: string;
+    name: string;
+    icon: string;
+    contents: ServiceContent[];
+    status: 'active' | 'inactive';
+};
+
 export default function DashboardPage() {
     const router = useRouter();
     const [messageCount, setMessageCount] = useState(3);
     const [notificationCount, setNotificationCount] = useState(5);
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [teamDoctors, setTeamDoctors] = useState<Doctor[]>([]);
+    const [services, setServices] = useState<Service[]>([]);
 
     const handleHomeClick = (e: React.MouseEvent) => {
         e.preventDefault(); // Prevent default navigation
@@ -68,6 +84,50 @@ export default function DashboardPage() {
 
         fetchDoctors();
     }, []);
+
+    useEffect(() => {
+        const fetchServices = async () => {
+            try {
+                const response = await axios.get('/api/admin/services?status=active');
+                if (response.data.success) {
+                    setServices(response.data.services);
+                }
+            } catch (error) {
+                console.error('Error fetching services:', error);
+            }
+        };
+
+        fetchServices();
+    }, []);
+
+    const renderIcon = (iconName: string) => {
+        const iconProps = { className: "h-8 w-8" };
+        const iconMapping: { [key: string]: React.ReactElement } = {
+            'Mammogram': <FaXRay {...iconProps} />,
+            'Clinical Exam': <FaStethoscope {...iconProps} />,
+            'Early Detection': <FiSearch {...iconProps} />,
+            'Regular Checkup': <FaCalendar {...iconProps} />,
+            'Biopsy': <FaMicroscope {...iconProps} />,
+            'Lab Tests': <FaVial {...iconProps} />,
+            'Medical Report': <FaNotesMedical {...iconProps} />,
+            'Diagnostic Imaging': <FaXRay {...iconProps} />,
+            'Surgery': <FaFirstAid {...iconProps} />,
+            'Chemotherapy': <FaPrescription {...iconProps} />,
+            'Radiation': <FaHeartbeat {...iconProps} />,
+            'Medical Care': <FaUserMd {...iconProps} />,
+            'Hospital Care': <FaHospital {...iconProps} />,
+            'Patient Support': <FaHandHolding {...iconProps} />,
+            'Counseling': <FaComments {...iconProps} />,
+            'Support Group': <FaUsers {...iconProps} />,
+            'Care Team': <FaUserMd {...iconProps} />,
+            'Prevention': <FaShieldAlt {...iconProps} />,
+            'Monitoring': <FaChartLine {...iconProps} />,
+            'Clinical Care': <FaClinicMedical {...iconProps} />,
+            'Patient Care': <FaHospitalUser {...iconProps} />
+        };
+
+        return iconMapping[iconName] || <TbStethoscope {...iconProps} />;
+    };
 
     return (
         <div id="top" className={`min-h-screen bg-gray-50 ${poppins.className}`}>
@@ -111,7 +171,14 @@ export default function DashboardPage() {
                                         Our Team
                                     </Link>
                                 </li>
-                                <li><a href="#" className="text-gray-600 hover:text-pink-600 font-medium">Patient Resources</a></li>
+                                <li>
+                                    <Link 
+                                        href="/dashboard/resources" 
+                                        className="text-gray-600 hover:text-pink-600 font-medium"
+                                    >
+                                        Patient Resources
+                                    </Link>
+                                </li>
                                 <li>
                                     <a href="#" className="text-gray-600 hover:text-pink-600 relative">
                                         <div className="relative">
@@ -250,81 +317,36 @@ export default function DashboardPage() {
                     </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                    {/* Screening Card */}
-                    <div className="bg-white rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="text-pink-600 mb-4 bg-pink-50 h-16 w-16 rounded-full flex items-center justify-center">
-                            <TbStethoscope className="h-8 w-8" />
-                        </div>
-                        <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                            Screening
-                        </h3>
-                        <p className="text-gray-600 mb-4">
-                            Regular mammograms and clinical breast examinations for early detection.
-                        </p>
-                        <a href="#" className="text-pink-600 hover:text-pink-700 font-medium inline-flex items-center">
-                            Learn More
-                            <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                        </a>
-                    </div>
-
-                    {/* Diagnosis Card */}
-                    <div className="bg-white rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="text-pink-600 mb-4 bg-pink-50 h-16 w-16 rounded-full flex items-center justify-center">
-                            <GiMicroscope className="h-8 w-8" />
-                        </div>
-                        <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                            Diagnosis
-                        </h3>
-                        <p className="text-gray-600 mb-4">
-                            Advanced diagnostic techniques including biopsies and imaging services.
-                        </p>
-                        <a href="#" className="text-pink-600 hover:text-pink-700 font-medium inline-flex items-center">
-                            Learn More
-                            <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                        </a>
-                    </div>
-
-                    {/* Treatment Card */}
-                    <div className="bg-white rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="text-pink-600 mb-4 bg-pink-50 h-16 w-16 rounded-full flex items-center justify-center">
-                            <RiMentalHealthLine className="h-8 w-8" />
-                        </div>
-                        <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                            Treatment
-                        </h3>
-                        <p className="text-gray-600 mb-4">
-                            Personalized treatment plans including surgery, chemotherapy, and radiation.
-                        </p>
-                        <a href="#" className="text-pink-600 hover:text-pink-700 font-medium inline-flex items-center">
-                            Learn More
-                            <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                        </a>
-                    </div>
-
-                    {/* Support Groups Card */}
-                    <div className="bg-white rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="text-pink-600 mb-4 bg-pink-50 h-16 w-16 rounded-full flex items-center justify-center">
-                            <HiOutlineUserGroup className="h-8 w-8" />
-                        </div>
-                        <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                            Support Groups
-                        </h3>
-                        <p className="text-gray-600 mb-4">
-                            Connect with others and receive emotional support throughout your journey.
-                        </p>
-                        <a href="#" className="text-pink-600 hover:text-pink-700 font-medium inline-flex items-center">
-                            Learn More
-                            <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                        </a>
+                <div className="flex justify-center">
+                    <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 ${
+                        services.length < 4 ? 'lg:grid-cols-' + services.length : ''
+                    }`}>
+                        {services.slice(0, 4).map((service) => (
+                            <div key={service._id} className="bg-white rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow w-full max-w-sm">
+                                <div className="text-pink-600 mb-4 bg-pink-50 h-16 w-16 rounded-full flex items-center justify-center">
+                                    {renderIcon(service.icon)}
+                                </div>
+                                <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                                    {service.name}
+                                </h3>
+                                <div className="text-gray-600 mb-4">
+                                    {service.contents.map((content, index) => (
+                                        <p key={index} className={index !== service.contents.length - 1 ? 'mb-2' : ''}>
+                                            {content.subheader}
+                                        </p>
+                                    ))}
+                                </div>
+                                <Link 
+                                    href="/dashboard/services" 
+                                    className="text-pink-600 hover:text-pink-700 font-medium inline-flex items-center"
+                                >
+                                    Learn More
+                                    <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                </Link>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </div>
@@ -537,9 +559,12 @@ export default function DashboardPage() {
                                     </Link>
                                 </li>
                                 <li>
-                                    <a href="#" className="hover:text-pink-500 transition-colors">
+                                <Link 
+                                        href="/dashboard/resources" 
+                                        className="hover:text-pink-500 transition-colors"
+                                    >
                                         Patient Resources
-                                    </a>
+                                    </Link>
                                 </li>
                             </ul>
                         </div>
