@@ -233,7 +233,7 @@ export default function ManageResources() {
             text: "Information",
             custom: true,
             component: (
-                <div className="relative" style={{ position: 'relative', zIndex: 9999 }}>
+                <div className="relative" style={{ position: 'relative', zIndex: 60 }}>
                     <div 
                         onClick={() => setShowInfoDropdown(!showInfoDropdown)}
                         className={`flex items-center px-4 py-3 rounded-lg transition-colors relative cursor-pointer ${
@@ -258,7 +258,7 @@ export default function ManageResources() {
                             } py-1`}
                             style={{ 
                                 position: 'absolute',
-                                zIndex: 9999,
+                                zIndex: 999,
                                 left: '100%',
                                 top: '0',
                                 marginLeft: '8px'
@@ -288,8 +288,7 @@ export default function ManageResources() {
                     )}
                 </div>
             )
-        },
-        { href: "/admindashboard/settings", icon: <FiSettings className="w-5 h-5 mr-4" />, text: "Settings" }
+        }
     ];
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -762,12 +761,16 @@ export default function ManageResources() {
         return category === 'Tips & Guides' || category === 'News & Articles';
     };
 
+    const isAnyModalOpen = () => {
+        return isResourceModalOpen || isPreviewModalOpen || isDeleteModalOpen;
+    };
+
     return (
         <div className={`flex min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
             {/* Sidebar - Fixed */}
-            <div className={`w-64 shadow-lg flex flex-col justify-between fixed left-0 top-0 h-screen ${
+            <div className={`w-64 shadow-lg flex flex-col justify-between fixed left-0 top-0 h-screen transition-all duration-300 ${
                 isDarkMode ? 'bg-gray-800' : 'bg-white'
-            } z-[9999]`}>  {/* Added z-[9999] here */}
+            } ${isAnyModalOpen() ? 'backdrop-blur-sm bg-opacity-50' : ''} z-[40]`}>
                 <div>
                     <div className="p-6">
                         <div className="flex flex-col items-center">
@@ -826,7 +829,7 @@ export default function ManageResources() {
             {/* Main Content Area with Top Menu */}
             <div className="flex-1 flex flex-col ml-64">
                 {/* Top Menu Bar - Fixed */}
-                <div className={`px-8 py-4 flex items-center justify-between fixed top-0 right-0 left-64 z-[50] ${
+                <div className={`px-8 py-4 flex items-center justify-between fixed top-0 right-0 left-64 z-[45] ${
                     isDarkMode ? 'bg-gray-900' : 'bg-gray-50'
                 } shadow-sm`}>
                     {/* Welcome Message */}
@@ -899,7 +902,7 @@ export default function ManageResources() {
                 </div>
 
                 {/* Main Content - With increased top padding */}
-                <div className="flex-1 p-4 pt-28 overflow-y-auto z-[40]"> {/* Added z-[40] here */}
+                <div className="flex-1 p-4 pt-28 overflow-y-auto z-[30]"> {/* Lower z-index for main content */}
                     <div className="px-6">
                         {/* Resource Categories Tabs */}
                         <div className="mb-6">
@@ -1399,9 +1402,9 @@ export default function ManageResources() {
             {/* Resource Modal */}
             {isResourceModalOpen && (
                 <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
-                    <div className={`w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-lg shadow-lg ${
-                        isDarkMode ? 'bg-gray-800' : 'bg-white'
-                    } p-6`}>
+                    <div className={`${isDarkMode ? 'bg-gray-800/95' : 'bg-white/95'} rounded-lg p-6 w-full max-w-4xl relative shadow-xl backdrop-blur-sm border ${
+                        isDarkMode ? 'border-gray-700' : 'border-gray-200'
+                    } max-h-[90vh] overflow-y-auto`}>
                         {/* Modal Header */}
                         <div className="flex justify-between items-center mb-6">
                             <h2 className={`text-2xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -1488,9 +1491,9 @@ export default function ManageResources() {
                                             className={`w-full px-4 py-2 rounded-lg border ${
                                                 errors.eventCategory ? 'border-red-500' :
                                                 isDarkMode 
-                                                    ? 'bg-gray-700 border-gray-600 text-white' 
-                                                    : 'bg-white border-gray-300 text-gray-900'
-                                            } focus:ring-2 focus:ring-pink-500`}
+                                                    ? 'bg-gray-700 border-gray-600' 
+                                                    : 'bg-white border-gray-300'
+                                            } ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
                                         >
                                             <option value="">Select event category</option>
                                             <option value="support group">Support Group</option>
@@ -1516,9 +1519,9 @@ export default function ManageResources() {
                                                 className={`w-full px-4 py-2 rounded-lg border ${
                                                     errors.eventDate ? 'border-red-500' :
                                                     isDarkMode 
-                                                        ? 'bg-gray-700 border-gray-600 text-white' 
-                                                        : 'bg-white border-gray-300 text-gray-900'
-                                                } focus:ring-2 focus:ring-pink-500`}
+                                                        ? 'bg-gray-700 border-gray-600' 
+                                                        : 'bg-white border-gray-300'
+                                                } ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
                                             />
                                             {errors.eventDate && (
                                                 <p className="mt-1 text-sm text-red-500">{errors.eventDate}</p>
@@ -1535,9 +1538,9 @@ export default function ManageResources() {
                                                 className={`w-full px-4 py-2 rounded-lg border ${
                                                     errors.eventTime ? 'border-red-500' :
                                                     isDarkMode 
-                                                        ? 'bg-gray-700 border-gray-600 text-white' 
-                                                        : 'bg-white border-gray-300 text-gray-900'
-                                                } focus:ring-2 focus:ring-pink-500`}
+                                                        ? 'bg-gray-700 border-gray-600' 
+                                                        : 'bg-white border-gray-300'
+                                                } ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
                                             />
                                             {errors.eventTime && (
                                                 <p className="mt-1 text-sm text-red-500">{errors.eventTime}</p>
@@ -1557,9 +1560,9 @@ export default function ManageResources() {
                                             className={`w-full px-4 py-2 rounded-lg border ${
                                                 errors.shortDescription ? 'border-red-500' :
                                                 isDarkMode 
-                                                    ? 'bg-gray-700 border-gray-600 text-white' 
-                                                    : 'bg-white border-gray-300 text-gray-900'
-                                            } focus:ring-2 focus:ring-pink-500`}
+                                                    ? 'bg-gray-700 border-gray-600' 
+                                                    : 'bg-white border-gray-300'
+                                            } ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
                                             placeholder="Enter a short description of the event"
                                         />
                                         {errors.shortDescription && (
@@ -1853,6 +1856,9 @@ export default function ManageResources() {
                                                 } focus:ring-2 focus:ring-pink-500`}
                                                 placeholder="Comma-separated keywords"
                                             />
+                                            {errors.seoMetadata?.keywords && (
+                                                <p className="mt-1 text-sm text-red-500">{errors.seoMetadata.keywords}</p>
+                                            )}
                                         </div>
                                     </div>
                                 </>
@@ -1897,9 +1903,9 @@ export default function ManageResources() {
             {/* Preview Modal */}
             {isPreviewModalOpen && previewResource && (
                 <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
-                    <div className={`w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-lg shadow-lg ${
-                        isDarkMode ? 'bg-gray-800' : 'bg-white'
-                    } p-6`}>
+                    <div className={`${isDarkMode ? 'bg-gray-800/95' : 'bg-white/95'} rounded-lg p-6 w-full max-w-4xl relative shadow-xl backdrop-blur-sm border ${
+                        isDarkMode ? 'border-gray-700' : 'border-gray-200'
+                    } max-h-[90vh] overflow-y-auto`}>
                         {/* Modal Header */}
                         <div className="flex justify-between items-center mb-6">
                             <div>
@@ -2055,9 +2061,9 @@ export default function ManageResources() {
             {/* Delete Confirmation Modal */}
             {isDeleteModalOpen && (
                 <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
-                    <div className={`w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-lg shadow-lg ${
-                        isDarkMode ? 'bg-gray-800' : 'bg-white'
-                    } p-6`}>
+                    <div className={`${isDarkMode ? 'bg-gray-800/95' : 'bg-white/95'} rounded-lg p-6 w-full max-w-md relative shadow-xl backdrop-blur-sm border ${
+                        isDarkMode ? 'border-gray-700' : 'border-gray-200'
+                    }`}>
                         {/* Modal Header */}
                         <div className="flex justify-between items-center mb-6">
                             <h2 className={`text-2xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>

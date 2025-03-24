@@ -222,8 +222,7 @@ export default function ManageServices() {
                     )}
                 </div>
             )
-        },
-        { href: "/admindashboard/settings", icon: <FiSettings className="w-5 h-5 mr-4" />, text: "Settings" }
+        }
     ];
 
     const handleEditService = (service: Service) => {
@@ -554,6 +553,16 @@ export default function ManageServices() {
         }
     };
 
+    // Update the ITEMS_PER_PAGE constant
+    const ITEMS_PER_PAGE = 6;
+
+    // Add this function to get paginated services
+    const getPaginatedServices = () => {
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        return services.slice(startIndex, endIndex);
+    };
+
     return (
         <div className={`flex min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
             {/* Sidebar - Fixed */}
@@ -745,7 +754,7 @@ export default function ManageServices() {
                                     <tbody className={`${isDarkMode ? 'text-gray-300' : 'text-gray-700'} divide-y ${
                                         isDarkMode ? 'divide-gray-700' : 'divide-gray-200'
                                     }`}>
-                                        {services.map((service) => (
+                                        {getPaginatedServices().map((service) => (
                                             <tr key={service._id} className={`${
                                                 isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
                                             }`}>
@@ -826,7 +835,7 @@ export default function ManageServices() {
                             {/* Pagination */}
                             <div className="mt-6 flex justify-between items-center">
                                 <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    Showing {Math.min(services.length, 10)} of {services.length} services
+                                    Showing {Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, services.length)} to {Math.min(currentPage * ITEMS_PER_PAGE, services.length)} of {services.length} services
                                 </div>
                                 <div className="flex gap-2">
                                     <button
@@ -842,7 +851,7 @@ export default function ManageServices() {
                                     </button>
                                     <button
                                         onClick={() => setCurrentPage(prev => prev + 1)}
-                                        disabled={services.length < 10}
+                                        disabled={currentPage * ITEMS_PER_PAGE >= services.length}
                                         className={`px-3 py-1 rounded-lg ${
                                             isDarkMode 
                                                 ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 

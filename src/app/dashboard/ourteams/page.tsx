@@ -265,7 +265,7 @@ export default function OurTeamsPage() {
 
                                     {/* Buttons Container */}
                                     <div className="space-y-2">
-                                        <button
+                                        <button 
                                             onClick={() => router.push(`/appointment/${doctor._id}`)}
                                             className="w-full px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
                                         >

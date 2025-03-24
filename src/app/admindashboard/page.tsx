@@ -38,6 +38,7 @@ export default function AdminDashboard() {
     const [isLoading, setIsLoading] = useState(true);
     const pathname = usePathname();
     const [showInfoDropdown, setShowInfoDropdown] = useState(false);
+    const [userCount, setUserCount] = useState(0);
 
     useCheckCookies();
 
@@ -80,6 +81,22 @@ export default function AdminDashboard() {
         };
 
         fetchDoctors();
+    }, []);
+
+    useEffect(() => {
+        const fetchUserCount = async () => {
+            try {
+                const response = await fetch('/api/admin/patients');
+                const data = await response.json();
+                if (data.success) {
+                    setUserCount(data.userCount);
+                }
+            } catch (error) {
+                console.error('Error fetching user count:', error);
+            }
+        };
+
+        fetchUserCount();
     }, []);
 
     const toggleTheme = () => {
@@ -156,8 +173,7 @@ export default function AdminDashboard() {
                     )}
                 </div>
             )
-        },
-        { href: "/admindashboard/settings", icon: <FiSettings className="w-5 h-5 mr-4" />, text: "Settings" }
+        }
     ];
 
     return (
@@ -386,10 +402,10 @@ export default function AdminDashboard() {
                                             </div>
                                             <div>
                                                 <p className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                                    150
+                                                    {userCount}
                                                 </p>
                                                 <p className={`text-base font-medium mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                    Total Patients
+                                                    Total Users
                                                 </p>
                                             </div>
                                         </div>

@@ -356,7 +356,18 @@ const DoctorsPage = () => {
   const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     
-    if (name === 'operatingHours') {
+    if (name === 'phone') {
+        // Only allow digits
+        const numbersOnly = value.replace(/\D/g, '');
+        
+        // Limit to 10 digits and add 60 prefix
+        if (numbersOnly.length <= 10) {
+            setEditFormData(prev => ({
+                ...prev,
+                [name]: '60' + numbersOnly
+            }));
+        }
+    } else if (name === 'operatingHours') {
       // Format operating hours with specific capitalization
       const formattedValue = value
         // First, convert everything to lowercase
@@ -417,54 +428,61 @@ const DoctorsPage = () => {
     
     // Basic validation
     if (!editFormData.name) {
-      newErrors.name = 'Name is required';
+        newErrors.name = 'Name is required';
     }
     if (!editFormData.email) {
-      newErrors.email = 'Email is required';
+        newErrors.email = 'Email is required';
     } else if (!editFormData.email.includes('@')) {
-      newErrors.email = 'Please enter a valid email address';
+        newErrors.email = 'Please enter a valid email address';
     }
     if (!editFormData.phone) {
-      newErrors.phone = 'Phone number is required';
+        newErrors.phone = 'Phone number is required';
+    } else {
+        // Remove any non-digit characters and check length
+        const phoneDigits = String(editFormData.phone).replace(/\D/g, '');
+        const phoneLength = phoneDigits.slice(2).length; // Remove '60' prefix for length check
+        if (phoneLength < 9 || phoneLength > 10) {
+            newErrors.phone = 'Phone number must be 9 or 10 digits (excluding country code)';
+        }
     }
 
     if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
+        setErrors(newErrors);
+        return;
     }
 
     try {
-      setLoading(true);
-      
-      // Calculate Malaysia time (UTC+8)
-      const malaysiaOffset = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
-      const now = new Date();
-      const malaysiaTime = new Date(now.getTime() + malaysiaOffset);
-      
-      const response = await axios.put('/api/admin/doctors', {
-        id: selectedDoctor._id,
-        ...editFormData,
-        updatedAt: malaysiaTime.toISOString()
-      });
+        setLoading(true);
+        
+        // Calculate Malaysia time (UTC+8)
+        const malaysiaOffset = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+        const now = new Date();
+        const malaysiaTime = new Date(now.getTime() + malaysiaOffset);
+        
+        const response = await axios.put('/api/admin/doctors', {
+            id: selectedDoctor._id,
+            ...editFormData,
+            updatedAt: malaysiaTime.toISOString()
+        });
 
-      if (response.data.message) {
-        setIsEditDoctorModalOpen(false);
-        setShowEditSuccessMessage(true);
-        setTimeout(() => {
-          setShowEditSuccessMessage(false);
-        }, 3000);
-        await fetchDoctors();
-      }
-      
+        if (response.data.message) {
+            setIsEditDoctorModalOpen(false);
+            setShowEditSuccessMessage(true);
+            setTimeout(() => {
+                setShowEditSuccessMessage(false);
+            }, 3000);
+            await fetchDoctors();
+        }
+        
     } catch (error: any) {
-      console.error('Update error:', error);
-      if (error.response?.data?.error) {
-        setErrors({ general: error.response.data.error });
-      } else {
-        setErrors({ general: 'An error occurred while updating the doctor.' });
-      }
+        console.error('Update error:', error);
+        if (error.response?.data?.error) {
+            setErrors({ general: error.response.data.error });
+        } else {
+            setErrors({ general: 'An error occurred while updating the doctor.' });
+        }
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
   };
 
@@ -512,45 +530,24 @@ const DoctorsPage = () => {
                     <span>Information</span>
                     <FiChevronRight className={`w-4 h-4 ml-auto transition-transform ${showInfoDropdown ? 'transform rotate-90' : ''}`} />
                 </div>
-
-                {showInfoDropdown && (
-                    <div 
-                        className={`absolute left-full top-0 ml-2 w-48 rounded-md shadow-lg ${
-                            isDarkMode ? 'bg-gray-700' : 'bg-white'
-                        } py-1 z-[110]`}
-                    >
-                        <Link 
-                            href="/admindashboard/manage-services"
-                            className={`block px-4 py-2 text-sm ${
-                                isDarkMode 
-                                    ? 'text-gray-200 hover:bg-gray-600' 
-                                    : 'text-gray-700 hover:bg-pink-50'
-                            }`}
-                        >
-                            Manage Services
-                        </Link>
-                        <Link 
-                            href="/admindashboard/manage-resources"
-                            className={`block px-4 py-2 text-sm ${
-                                isDarkMode 
-                                    ? 'text-gray-200 hover:bg-gray-600' 
-                                    : 'text-gray-700 hover:bg-pink-50'
-                            }`}
-                        >
-                            Manage Resources
-                        </Link>
-                    </div>
-                )}
             </div>
         )
-    },
-    { href: "/admindashboard/settings", icon: <FiSettings className="w-5 h-5 mr-4" />, text: "Settings" }
+    }
   ];
+
+  // First, let's create a function to check if any modal is open
+  const isAnyModalOpen = () => {
+    return isAddDoctorModalOpen || isEditDoctorModalOpen || deleteConfirmationModal || isViewDoctorModalOpen;
+  };
 
   return (
     <div className={`flex min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {/* Sidebar - Fixed */}
-      <div className={`w-64 shadow-lg flex flex-col justify-between fixed left-0 top-0 h-screen z-[100] ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+      <div className={`w-64 h-screen fixed left-0 top-0 ${
+        isDarkMode ? 'bg-gray-900' : 'bg-white'
+      } shadow-lg transition-all duration-300 ${
+        isAnyModalOpen() ? 'backdrop-blur-sm bg-opacity-30' : ''
+      }`}>
         <div>
           <div className="p-6">
             <div className="flex flex-col items-center">
@@ -724,7 +721,7 @@ const DoctorsPage = () => {
           </div>
 
           {/* Doctors Table */}
-          <div className={`rounded-lg shadow overflow-hidden ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <div className={`rounded-lg shadow overflow-hidden relative z-[1] ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
             <div className="overflow-x-auto">
               <table className="min-w-full">
                 <thead className={`${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
@@ -1171,21 +1168,35 @@ const DoctorsPage = () => {
                     <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                       Phone Number
                     </label>
-                    <input
-                      type="text"
-                      name="phone"
-                      value={editFormData.phone}
-                      onChange={handleEditInputChange}
-                      className={`w-full px-3 py-2 rounded-lg border ${
-                        errors.phone
-                          ? 'border-red-500 ring-1 ring-red-500'
-                          : isDarkMode 
-                            ? 'bg-gray-700 border-gray-600 text-white' 
-                            : 'bg-white border-gray-300 text-gray-700'
-                      } focus:outline-none focus:border-pink-500`}
-                    />
+                    <div className="relative">
+                        <div className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${
+                            isDarkMode ? 'text-white' : 'text-gray-700'
+                        }`}>
+                            +60
+                        </div>
+                        <input
+                            type="tel"
+                            name="phone"
+                            value={String(editFormData.phone).startsWith('60') 
+                                ? String(editFormData.phone).slice(2) 
+                                : String(editFormData.phone)}
+                            onChange={handleEditInputChange}
+                            className={`w-full pl-12 pr-3 py-2 rounded-lg border ${
+                                errors.phone
+                                    ? 'border-red-500 ring-1 ring-red-500'
+                                    : isDarkMode 
+                                        ? 'bg-gray-700 border-gray-600' 
+                                        : 'bg-white border-gray-300'
+                            } ${isDarkMode ? 'text-white' : 'text-gray-700'} focus:outline-none ${
+                                errors.phone ? 'focus:border-red-500 focus:ring-red-500' : 'focus:border-pink-500'
+                            }`}
+                            placeholder="1123456789"
+                            maxLength={10}
+                            pattern="[0-9]*"
+                        />
+                    </div>
                     {errors.phone && (
-                      <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
+                        <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
                     )}
                   </div>
 
@@ -1416,6 +1427,40 @@ const DoctorsPage = () => {
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Information Dropdown */}
+          {showInfoDropdown && (
+            <div 
+                className={`fixed ml-2 w-48 rounded-md shadow-lg ${
+                    isDarkMode ? 'bg-gray-700' : 'bg-white'
+                } py-1 z-[9999]`}
+                style={{
+                    top: '350px', // Fixed position to align with Information menu item
+                    left: '240px'
+                }}
+            >
+                <Link 
+                    href="/admindashboard/manage-services"
+                    className={`block px-4 py-2 text-sm ${
+                        isDarkMode 
+                            ? 'text-gray-200 hover:bg-gray-600' 
+                            : 'text-gray-700 hover:bg-pink-50'
+                    }`}
+                >
+                    Manage Services
+                </Link>
+                <Link 
+                    href="/admindashboard/manage-resources"
+                    className={`block px-4 py-2 text-sm ${
+                        isDarkMode 
+                            ? 'text-gray-200 hover:bg-gray-600' 
+                            : 'text-gray-700 hover:bg-pink-50'
+                    }`}
+                >
+                    Manage Resources
+                </Link>
             </div>
           )}
         </div>
