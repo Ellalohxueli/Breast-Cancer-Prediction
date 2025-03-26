@@ -384,7 +384,7 @@ export default function ResourcesPage() {
                                 </li>
                                 <li>
                                     <a
-                                        href="#"
+                                        href="/dashboard/ourteams" 
                                         className="px-4 py-2 text-sm font-medium text-white bg-pink-600 rounded-md hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
                                     >
                                         Schedule Appointment
@@ -587,7 +587,10 @@ export default function ResourcesPage() {
                                     </div>
                                 </div>
                                 <div className="w-full md:w-auto">
-                                    <button className="w-full md:w-auto px-8 py-3 bg-pink-600 text-white font-medium rounded-md hover:bg-pink-700 transition-colors">
+                                    <button 
+                                        onClick={() => router.push('/dashboard/ourteams')}
+                                        className="w-full md:w-auto px-8 py-3 bg-pink-600 text-white font-medium rounded-md hover:bg-pink-700 transition-colors"
+                                    >
                                         Schedule Appointment
                                     </button>
                                 </div>

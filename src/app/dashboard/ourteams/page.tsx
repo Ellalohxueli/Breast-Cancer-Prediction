@@ -166,7 +166,7 @@ export default function OurTeamsPage() {
                                 </li>
                                 <li>
                                     <a
-                                        href="#"
+                                        href="/dashboard/ourteams" 
                                         className="px-4 py-2 text-sm font-medium text-white bg-pink-600 rounded-md hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
                                     >
                                         Schedule Appointment

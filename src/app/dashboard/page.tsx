@@ -20,6 +20,7 @@ import { FaPhone, FaEnvelope, FaMapMarkerAlt, FaFacebookF, FaTwitter, FaInstagra
 import 'swiper/css';
 import 'swiper/css/pagination';
 import Link from 'next/link';
+import useCheckCookies from '@/controller/UseCheckCookie';
 import axios from 'axios';
 import { FaXRay, FaCalendar, FaVial, FaNotesMedical, FaFirstAid, FaPrescription, FaHeartbeat, FaUserMd, FaHospital, FaHandHolding, FaComments, FaShieldAlt, FaChartLine, FaClinicMedical, FaHospitalUser } from 'react-icons/fa';
 import { FiSearch } from 'react-icons/fi';
@@ -50,6 +51,19 @@ type Service = {
     status: 'active' | 'inactive';
 };
 
+type ReviewErrors = {
+    rating?: string;
+    reviewComment?: string;
+};
+
+type Review = {
+    _id: string;
+    firstName: string;
+    rating: number;
+    reviewComment: string;
+    created_at: string;
+};
+
 export default function DashboardPage() {
     const router = useRouter();
     const [messageCount, setMessageCount] = useState(3);
@@ -57,14 +71,24 @@ export default function DashboardPage() {
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [teamDoctors, setTeamDoctors] = useState<Doctor[]>([]);
     const [services, setServices] = useState<Service[]>([]);
+    const [rating, setRating] = useState(0);
+    const [reviewComment, setReviewComment] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [user, setUser] = useState({ firstName: '' });
+    const [successMessage, setSuccessMessage] = useState<'add' | null>(null);
+    const [errors, setErrors] = useState<ReviewErrors>({});
+    const [reviews, setReviews] = useState<Review[]>([]);
+
+    useCheckCookies();
 
     const handleHomeClick = (e: React.MouseEvent) => {
         e.preventDefault(); // Prevent default navigation
     };
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
         console.log('Logout clicked');
         try {
+            await axios.get("/api/users/logout");
             localStorage.removeItem('firstname');
             window.location.href = '/login';
         } catch (error) {
@@ -100,6 +124,21 @@ export default function DashboardPage() {
         fetchServices();
     }, []);
 
+    useEffect(() => {
+        const fetchReviews = async () => {
+            try {
+                const response = await axios.get('/api/users/reviews');
+                if (response.data.success) {
+                    setReviews(response.data.reviews);
+                }
+            } catch (error) {
+                console.error('Error fetching reviews:', error);
+            }
+        };
+
+        fetchReviews();
+    }, []);
+
     const renderIcon = (iconName: string) => {
         const iconProps = { className: "h-8 w-8" };
         const iconMapping: { [key: string]: React.ReactElement } = {
@@ -127,6 +166,83 @@ export default function DashboardPage() {
         };
 
         return iconMapping[iconName] || <TbStethoscope {...iconProps} />;
+    };
+
+    const handleReviewSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        // Clear previous errors
+        setErrors({});
+        
+        // Validate inputs
+        const newErrors: ReviewErrors = {};
+        if (!rating) {
+            newErrors.rating = 'Please select a rating';
+        }
+        if (!reviewComment.trim()) {
+            newErrors.reviewComment = 'Please provide a review comment';
+        }
+        
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            return;
+        }
+
+        const firstName = localStorage.getItem('firstname');
+        if (!firstName) {
+            alert('Please log in to submit a review');
+            router.push('/login');
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            // First, check if user has already submitted a review
+            const checkResponse = await axios.get(`/api/users/reviews/check?firstName=${firstName}`);
+            
+            if (checkResponse.data.hasReviewed) {
+                setErrors({
+                    reviewComment: 'You have already submitted a review before. Only one review per user is allowed.'
+                });
+                setIsSubmitting(false);
+                return;
+            }
+
+            // If no previous review, proceed with submission
+            const response = await axios.post('/api/users/reviews', {
+                firstName,
+                rating,
+                reviewComment,
+                created_at: new Date()
+            });
+
+            if (response.data.success) {
+                setSuccessMessage('add');
+                setRating(0);
+                setReviewComment('');
+                setErrors({});
+                
+                setTimeout(() => {
+                    setSuccessMessage(null);
+                }, 3000);
+            }
+        } catch (error: any) {
+            console.error('Error submitting review:', error);
+            if (error.response?.status === 401) {
+                alert('Please log in to submit a review');
+                router.push('/login');
+            } else if (error.response?.data?.error) {
+                setErrors({
+                    reviewComment: error.response.data.error
+                });
+            } else {
+                setErrors({
+                    reviewComment: 'Failed to submit review. Please try again.'
+                });
+            }
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -219,10 +335,7 @@ export default function DashboardPage() {
                                                 View Profile
                                             </button>
                                             <button
-                                                onClick={() => {
-                                                    localStorage.removeItem('firstname');
-                                                    window.location.href = '/login';
-                                                }}
+                                                onClick={handleLogout}
                                                 className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
                                             >
                                                 <svg className="h-4 w-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -235,7 +348,7 @@ export default function DashboardPage() {
                                 </li>
                                 <li>
                                     <a 
-                                        href="#" 
+                                        href="/dashboard/ourteams"
                                         className="px-4 py-2 text-sm font-medium text-white bg-pink-600 rounded-md hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
                                     >
                                         Schedule Appointment
@@ -277,6 +390,7 @@ export default function DashboardPage() {
                         </p>
                         <div className="flex gap-4">
                             <button 
+                                onClick={() => router.push('/dashboard/ourteams')}
                                 className="px-8 py-4 bg-pink-600 text-white rounded-md hover:bg-pink-700 transition-colors duration-300 font-medium text-lg shadow-lg hover:shadow-xl"
                             >
                                 Book Your Consultation
@@ -379,81 +493,46 @@ export default function DashboardPage() {
                         }}
                         className="py-8"
                     >
-                        {/* Testimonial 1 */}
-                        <SwiperSlide>
-                            <div className="bg-white rounded-lg p-8 shadow-sm h-full">
-                                <div className="flex items-center mb-6">
-                                    <div className="h-12 w-12 rounded-full bg-pink-100 flex items-center justify-center">
-                                        <span className="text-pink-600 font-semibold text-xl">S</span>
-                                    </div>
-                                    <div className="ml-4">
-                                        <h4 className="text-gray-900 font-semibold">Sarah Chen</h4>
-                                        <div className="flex items-center gap-2">
-                                            <div className="flex text-pink-500">
-                                                {[...Array(5)].map((_, i) => (
-                                                    <FaStar key={i} className="h-4 w-4" />
-                                                ))}
+                        {reviews.map((review) => (
+                            <SwiperSlide key={review._id}>
+                                <div className="bg-white rounded-lg p-8 shadow-sm h-[260px] flex flex-col">
+                                    {/* Header with user info and rating */}
+                                    <div className="flex items-center mb-4">
+                                        <div className="h-12 w-12 rounded-full bg-pink-100 flex items-center justify-center flex-shrink-0">
+                                            <span className="text-pink-600 font-semibold text-xl">
+                                                {review.firstName.charAt(0)}
+                                            </span>
+                                        </div>
+                                        <div className="ml-4 flex-1">
+                                            <h4 className="text-gray-900 font-semibold">{review.firstName}</h4>
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex text-pink-500">
+                                                    {[...Array(5)].map((_, i) => (
+                                                        <FaStar 
+                                                            key={i} 
+                                                            className={`h-4 w-4 ${
+                                                                i < review.rating ? 'text-pink-500' : 'text-gray-300'
+                                                            }`} 
+                                                        />
+                                                    ))}
+                                                </div>
+                                                <span className="text-sm text-gray-500">
+                                                    • {new Date(review.created_at).toLocaleDateString('en-US', { 
+                                                        year: 'numeric', 
+                                                        month: 'long'
+                                                    })}
+                                                </span>
                                             </div>
-                                            <span className="text-sm text-gray-500">• March 2024</span>
                                         </div>
                                     </div>
-                                </div>
-                                <blockquote className="text-gray-600 italic mb-4">
-                                    "The care and support I received here was exceptional. The medical team was not only professional but also incredibly compassionate throughout my journey."
-                                </blockquote>
-                            </div>
-                        </SwiperSlide>
 
-                        {/* Testimonial 2 */}
-                        <SwiperSlide>
-                            <div className="bg-white rounded-lg p-8 shadow-sm h-full">
-                                <div className="flex items-center mb-6">
-                                    <div className="h-12 w-12 rounded-full bg-pink-100 flex items-center justify-center">
-                                        <span className="text-pink-600 font-semibold text-xl">M</span>
-                                    </div>
-                                    <div className="ml-4">
-                                        <h4 className="text-gray-900 font-semibold">Maria Rodriguez</h4>
-                                        <div className="flex items-center gap-2">
-                                            <div className="flex text-pink-500">
-                                                {[...Array(5)].map((_, i) => (
-                                                    <FaStar key={i} className="h-4 w-4" />
-                                                ))}
-                                            </div>
-                                            <span className="text-sm text-gray-500">• February 2024</span>
-                                        </div>
-                                    </div>
+                                    {/* Review content with text truncation */}
+                                    <blockquote className="text-gray-600 italic flex-1 overflow-hidden">
+                                        <p className="line-clamp-5">"{review.reviewComment}"</p>
+                                    </blockquote>
                                 </div>
-                                <blockquote className="text-gray-600 italic mb-4">
-                                    "From diagnosis to treatment, every step was explained clearly. The support groups helped me connect with others going through similar experiences."
-                                </blockquote>
-                            </div>
-                        </SwiperSlide>
-
-                        {/* Testimonial 3 */}
-                        <SwiperSlide>
-                            <div className="bg-white rounded-lg p-8 shadow-sm h-full">
-                                <div className="flex items-center mb-6">
-                                    <div className="h-12 w-12 rounded-full bg-pink-100 flex items-center justify-center">
-                                        <span className="text-pink-600 font-semibold text-xl">L</span>
-                                    </div>
-                                    <div className="ml-4">
-                                        <h4 className="text-gray-900 font-semibold">Lisa Wong</h4>
-                                        <div className="flex items-center gap-2">
-                                            <div className="flex text-pink-500">
-                                                {[...Array(5)].map((_, i) => (
-                                                    <FaStar key={i} className="h-4 w-4" />
-                                                ))}
-                                            </div>
-                                            <span className="text-sm text-gray-500">• January 2024</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <blockquote className="text-gray-600 italic mb-4">
-                                    "The early detection program here saved my life. The medical team's expertise and the support system they provide is truly outstanding."
-                                </blockquote>
-                            </div>
-                        </SwiperSlide>
-
+                            </SwiperSlide>
+                        ))}
                     </Swiper>
                 </div>
             </div>
@@ -503,6 +582,90 @@ export default function DashboardPage() {
                     </Link>
                 </div>
             </div>
+
+            {/* Review Section */}
+            <div className="bg-white py-16">
+                <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="text-center mb-12">
+                        <h2 className="text-3xl font-bold text-gray-900 mb-4">Share Your Experience</h2>
+                        <p className="text-lg text-gray-600">
+                            Your feedback helps us improve and helps others in their journey.
+                        </p>
+                    </div>
+
+                    <form onSubmit={handleReviewSubmit} className="space-y-6">
+                        {/* Rating */}
+                        <div>
+                            <label className="block text-gray-700 font-medium mb-3">
+                                Your Rating
+                            </label>
+                            <div className="flex gap-2">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                    <button
+                                        key={star}
+                                        type="button"
+                                        onClick={() => {
+                                            setRating(star);
+                                            setErrors(prev => ({ ...prev, rating: undefined }));
+                                        }}
+                                        className={`${
+                                            star <= rating ? 'text-pink-500' : 'text-gray-300'
+                                        } hover:text-pink-500 focus:text-pink-500 text-2xl focus:outline-none transition-colors`}
+                                    >
+                                        <FaStar />
+                                    </button>
+                                ))}
+                            </div>
+                            {errors.rating && (
+                                <p className="mt-1 text-sm text-red-500">{errors.rating}</p>
+                            )}
+                        </div>
+
+                        {/* Review Comment */}
+                        <div>
+                            <label htmlFor="review" className="block text-gray-700 font-medium mb-3">
+                                Your Review
+                            </label>
+                            <textarea
+                                id="review"
+                                rows={4}
+                                value={reviewComment}
+                                onChange={(e) => {
+                                    setReviewComment(e.target.value);
+                                    setErrors(prev => ({ ...prev, reviewComment: undefined }));
+                                }}
+                                className={`w-full px-4 py-3 rounded-md border ${
+                                    errors.reviewComment ? 'border-red-500' : 'border-gray-300'
+                                } focus:border-pink-500 focus:ring-1 focus:ring-pink-500 resize-none placeholder-gray-400 text-black`}
+                                placeholder="Share your experience with us..."
+                            ></textarea>
+                            {errors.reviewComment && (
+                                <p className="mt-1 text-sm text-red-500">{errors.reviewComment}</p>
+                            )}
+                        </div>
+
+                        {/* Submit Button */}
+                        <div className="text-center">
+                            <button
+                                type="submit"
+                                disabled={isSubmitting}
+                                className={`px-8 py-3 bg-pink-600 text-white rounded-md hover:bg-pink-700 transition-colors font-medium ${
+                                    isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
+                            >
+                                {isSubmitting ? 'Submitting...' : 'Submit Review'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {/* Success Message */}
+            {successMessage && (
+                <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+                    Review submitted successfully!
+                </div>
+            )}
 
             {/* Footer Section */}
             <footer className="bg-gray-900 text-gray-300 pt-8 pb-4 relative overflow-hidden">

@@ -12,6 +12,7 @@ import { GiMicroscope, GiMedicalDrip, GiMedicines, GiHealthNormal, GiHealing } f
 import { RiMentalHealthLine } from 'react-icons/ri';
 import { IoMdPulse } from 'react-icons/io';
 import { FiSearch } from 'react-icons/fi';
+import useCheckCookies from '@/controller/UseCheckCookie';
 import axios from 'axios';
 
 const poppins = Poppins({
@@ -85,6 +86,8 @@ export default function ServicesPage() {
     const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
     const [services, setServices] = useState<Service[]>([]);
 
+    useCheckCookies();
+
     // Add useEffect to fetch services
     useEffect(() => {
         const fetchServices = async () => {
@@ -101,7 +104,8 @@ export default function ServicesPage() {
         fetchServices();
     }, []);
 
-    const handleLogout = () => {
+    const handleLogout = async() => {
+        await axios.get("/api/users/logout");
         localStorage.removeItem('firstname');
         window.location.href = '/login';
     };
@@ -209,7 +213,7 @@ export default function ServicesPage() {
                                 </li>
                                 <li>
                                     <a 
-                                        href="#" 
+                                        href="/dashboard/ourteams" 
                                         className="px-4 py-2 text-sm font-medium text-white bg-pink-600 rounded-md hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
                                     >
                                         Schedule Appointment
@@ -406,7 +410,10 @@ export default function ServicesPage() {
                         Schedule your appointment today and let our expert team provide you with the care you deserve.
                     </p>
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-                        <button className="px-8 py-3 bg-pink-600 text-white rounded-md hover:bg-pink-700 transition-colors text-lg font-medium min-w-[200px]">
+                        <button 
+                            onClick={() => router.push('/dashboard/ourteams')}
+                            className="px-8 py-3 bg-pink-600 text-white rounded-md hover:bg-pink-700 transition-colors text-lg font-medium min-w-[200px]"
+                        >
                             Schedule an Appointment
                         </button>
                         <div className="flex items-center space-x-3 text-gray-700">
