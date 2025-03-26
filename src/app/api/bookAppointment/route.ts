@@ -23,7 +23,6 @@ export async function POST(req: Request, res: NextApiResponse) {
             timeSlot: {
                 startTime: timeSlot.startTime,
                 endTime: timeSlot.endTime,
-                id: timeSlot.id,
             },
             status: "Booked",
         });

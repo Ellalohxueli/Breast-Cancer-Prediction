@@ -9,6 +9,7 @@ import { BiMessageRounded } from "react-icons/bi";
 import { FaRegBell, FaRegUser } from "react-icons/fa";
 import axios from "axios";
 import toast from "react-hot-toast";
+import { start } from "repl";
 
 const poppins = Poppins({
     weight: ["400", "500", "600", "700"],
@@ -131,27 +132,28 @@ export default function AppointmentPage() {
                         },
                         day: selectedDay,
                         timeSlot: {
-                            id: selectedTimeSlot._id,
                             startTime: selectedTimeSlot.startTime,
                             endTime: selectedTimeSlot.endTime,
                         },
                     };
 
-                    try {
-                        const response = await axios.post("/api/bookAppointment", data);
+                    console.log("Appointment data:", data);
 
-                        if (response.status === 201) {
-                            toast.success("Appointment booked successfully!");
+                    // try {
+                    //     const response = await axios.post("/api/bookAppointment", data);
 
-                            setTimeout(() => {
-                                router.push("/dashboard/ourteams");
-                            }, 1000);
-                        } else {
-                            toast.error("Failed to book appointment. Please try again.");
-                        }
-                    } catch (error) {
-                        toast.error("Failed to book appointment. Please try again.");
-                    }
+                    //     if (response.status === 201) {
+                    //         toast.success("Appointment booked successfully!");
+
+                    //         setTimeout(() => {
+                    //             router.push("/dashboard/ourteams");
+                    //         }, 1000);
+                    //     } else {
+                    //         toast.error("Failed to book appointment. Please try again.");
+                    //     }
+                    // } catch (error) {
+                    //     toast.error("Failed to book appointment. Please try again.");
+                    // }
                 } else {
                     toast.error("Failed to book appointment. Please try again.");
                 }
@@ -317,8 +319,7 @@ export default function AppointmentPage() {
                                     <thead>
                                         <tr>
                                             <th className="px-4 py-2 text-left text-gray-600">Day</th>
-                                            <th className="px-4 py-2 text-left text-gray-600">Time Slots</th>
-                                            <th className="px-4 py-2 text-left text-gray-600">Select</th>
+                                            <th className="px-4 py-2 text-center text-gray-600">Time Slots</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -327,38 +328,33 @@ export default function AppointmentPage() {
                                             return schedule.isAvailable && schedule.timeSlots.length > 0 ? (
                                                 <tr key={schedule._id}>
                                                     <td className="px-4 py-2">{day}</td>
-                                                    <td className="px-4 py-2">
+                                                    <td className="px-4 py-2 ">
                                                         {schedule.timeSlots.map((slot: any) => (
-                                                            <div key={slot._id}>
+                                                            <div
+                                                                key={slot._id}
+                                                                className={`inline-block lg:w-1/6 md:w-1/4 sm:1/3 p-1 m-1 border rounded-md text-center cursor-pointer ${
+                                                                    selectedSlots[doctor ? doctor._id : window.location.pathname.split("/")[2]] === slot._id
+                                                                        ? "bg-pink-600 text-white"
+                                                                        : ""
+                                                                }`}
+                                                                onClick={() => {
+                                                                    const slotId = slot._id;
+                                                                    const isSelected = selectedSlots[doctor ? doctor._id : window.location.pathname.split("/")[2]] === slotId;
+                                                                    if (!isSelected) {
+                                                                        setSelectedSlots((prev) => ({
+                                                                            ...prev,
+                                                                            [doctor ? doctor._id : window.location.pathname.split("/")[2]]: slotId,
+                                                                        }));
+                                                                    } else {
+                                                                        setSelectedSlots((prev) => {
+                                                                            const updatedSlots = { ...prev };
+                                                                            delete updatedSlots[doctor ? doctor._id : window.location.pathname.split("/")[2]];
+                                                                            return updatedSlots;
+                                                                        });
+                                                                    }
+                                                                }}
+                                                            >
                                                                 {slot.startTime} - {slot.endTime}
-                                                            </div>
-                                                        ))}
-                                                    </td>
-                                                    <td className="px-4 py-2">
-                                                        {schedule.timeSlots.map((slot: any) => (
-                                                            <div key={slot._id}>
-                                                                <input
-                                                                    type="checkbox"
-                                                                    value={slot._id}
-                                                                    name={day}
-                                                                    checked={selectedSlots[doctor ? doctor._id : window.location.pathname.split("/")[2]] === slot._id} // Check if this slot is already selected
-                                                                    onChange={(e) => {
-                                                                        const slotId = e.target.value;
-
-                                                                        if (e.target.checked) {
-                                                                            setSelectedSlots((prev) => ({
-                                                                                ...prev,
-                                                                                [doctor ? doctor._id : window.location.pathname.split("/")[2]]: slotId,
-                                                                            }));
-                                                                        } else {
-                                                                            setSelectedSlots((prev) => {
-                                                                                const updatedSlots = { ...prev };
-                                                                                delete updatedSlots[doctor ? doctor._id : window.location.pathname.split("/")[2]];
-                                                                                return updatedSlots;
-                                                                            });
-                                                                        }
-                                                                    }}
-                                                                />
                                                             </div>
                                                         ))}
                                                     </td>
