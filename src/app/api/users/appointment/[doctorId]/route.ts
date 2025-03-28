@@ -22,13 +22,6 @@ export async function GET(req: Request) {
 
         const bookedAppointments = (await BookedAppointment.find({})).filter((appointment: any) => appointment.doctorId === doctorId);
 
-        const bookedTimes = bookedAppointments.map((appointment: any) => {
-            return {
-                dateRange: appointment.dateRange,
-                timeSlot: `${appointment.timeSlot.startTime}-${appointment.timeSlot.endTime}`,
-            };
-        });
-
         if (!bookedAppointments) {
             return NextResponse.json({ error: "Failed to fetch booked appointments" }, { status: 500 });
         }
@@ -49,7 +42,7 @@ export async function GET(req: Request) {
                 Object.keys(appointment.weeklySchedule).forEach((day: string) => {
                     const schedule = appointment.weeklySchedule[day];
 
-                    // Separate time slots with duration and filter booked times in the same loop
+                    // Separate time slots with duration
                     if (schedule && Array.isArray(schedule.timeSlots)) {
                         schedule.timeSlots = schedule.timeSlots.flatMap((slot: any) => {
                             const slotStartTime = timeStrToMinutes(slot.startTime);
@@ -57,27 +50,14 @@ export async function GET(req: Request) {
 
                             const availableSlots = [];
 
-                            // Create available slots and check for booked times
+                            // Create available slots
                             for (let i = slotStartTime; i < slotEndTime; i += appointment.duration) {
                                 const newSlot = {
                                     startTime: minutesToTimeStr(i),
                                     endTime: minutesToTimeStr(i + appointment.duration),
                                 };
 
-                                // Appointment Date
-                                const appDate = getDates(new Date(appointment.dateRange.startDate), new Date(appointment.dateRange.endDate));
-
-                                // Filter out the booked times
-                                const isBooked = bookedTimes.some((bookedTime: any) => {
-                                    // Booked Date
-                                    const bookedDate = getDates(new Date(bookedTime.dateRange.startDate), new Date(bookedTime.dateRange.endDate));
-                                    return appDate === bookedDate && bookedTime.timeSlot === `${newSlot.startTime}-${newSlot.endTime}`;
-                                });
-
-                                // Only push the slot if it's not booked
-                                if (!isBooked) {
-                                    availableSlots.push(newSlot);
-                                }
+                                availableSlots.push(newSlot);
                             }
 
                             return availableSlots;
@@ -95,7 +75,7 @@ export async function GET(req: Request) {
             })
             .filter(Boolean); // filter out appointments that have no available slots
 
-        return NextResponse.json({ doctor, appointments: availableAppointments }, { status: 200 });
+        return NextResponse.json({ doctor, appointments: availableAppointments, bookedAppointments }, { status: 200 });
     } catch (error) {
         return NextResponse.json({ error: "Failed to fetch data" }, { status: 500 });
     }

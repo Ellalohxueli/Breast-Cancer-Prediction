@@ -51,7 +51,7 @@ export default function LoginPage() {
             // Try doctor login first
             try {
                 const doctorResponse = await axios.post('/api/doctors/login', user);
-                console.log('doctor login okay', doctorResponse.data);
+
                 localStorage.setItem('doctorId', doctorResponse.data._id);
                 localStorage.setItem('name', doctorResponse.data.name);
                 localStorage.setItem('image', doctorResponse.data.image);
@@ -61,8 +61,9 @@ export default function LoginPage() {
             } catch (doctorError) {
                 // If doctor login fails, try regular user login
                 const response = await axios.post('/api/users/login', user);
-                console.log('user login okay', response.data);
+
                 localStorage.setItem('firstname', response.data.firstname);
+                localStorage.setItem('userId', response.data.userId);
                 
                 // Check user role and redirect accordingly
                 const userRole = response.data.role;

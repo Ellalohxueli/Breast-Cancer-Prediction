@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
             success: true,
             role: user.role,
             firstname: user.firstname,
+            userId: user._id,
             token: token
         });
 

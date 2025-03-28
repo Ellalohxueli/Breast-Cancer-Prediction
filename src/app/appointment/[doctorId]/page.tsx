@@ -32,11 +32,29 @@ interface WeeklySchedule {
 
 interface Appointment {
     _id: string;
+    excludedDates: {
+        startDate: string;
+        endDate: string;
+        type: string;
+    }[];
     dateRange: {
         startDate: string;
         endDate: string;
     };
     weeklySchedule: WeeklySchedule;
+}
+
+interface BookedAppointment {
+    _id: string;
+    dateRange: {
+        startDate: string;
+        endDate: string;
+    };
+    day: string;
+    timeSlot: {
+        startTime: string;
+        endTime: string;
+    };
 }
 
 interface Doctor {
@@ -58,8 +76,13 @@ export default function AppointmentPage() {
 
     const [doctor, setDoctor] = useState<Doctor | null>(null);
     const [appointments, setAppointments] = useState<Appointment[] | null>(null);
+    const [bookedAppointments, setBookedAppointments] = useState<BookedAppointment[]>([]);
     const [selectedSlots, setSelectedSlots] = useState<{ [key: string]: string }>({});
     const [error, setError] = useState<string | null>(null);
+
+    const [selectedDate, setSelectedDate] = useState<string>("");
+    const [selectedDateDay, setSelectedDateDay] = useState<string>("");
+    const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>([]);
 
     useEffect(() => {
         async function fetchAppointmentData() {
@@ -74,6 +97,11 @@ export default function AppointmentPage() {
 
                 setDoctor(data.doctor);
                 setAppointments(data.appointments);
+                setBookedAppointments(data.bookedAppointments);
+                setFilteredAppointments(data.appointments);
+
+                console.log("APP DATA", data.appointments);
+                console.log("BOOKED APPOINTMENTS", data.bookedAppointments);
             } catch (error: any) {
                 setError(error.message);
             }
@@ -108,8 +136,6 @@ export default function AppointmentPage() {
             );
 
             if (selectedAppointment) {
-                const { startDate, endDate } = selectedAppointment.dateRange;
-
                 let selectedDay: string | undefined;
                 let selectedTimeSlot: AppointmentSlot | undefined;
 
@@ -127,8 +153,8 @@ export default function AppointmentPage() {
                         doctorId,
                         patientId: localStorage.getItem("userId"),
                         dateRange: {
-                            startDate,
-                            endDate,
+                            startDate: selectedDate,
+                            endDate: selectedDate,
                         },
                         day: selectedDay,
                         timeSlot: {
@@ -137,23 +163,21 @@ export default function AppointmentPage() {
                         },
                     };
 
-                    console.log("Appointment data:", data);
+                    try {
+                        const response = await axios.post("/api/bookAppointment", data);
 
-                    // try {
-                    //     const response = await axios.post("/api/bookAppointment", data);
+                        if (response.status === 201) {
+                            toast.success("Appointment booked successfully!");
 
-                    //     if (response.status === 201) {
-                    //         toast.success("Appointment booked successfully!");
-
-                    //         setTimeout(() => {
-                    //             router.push("/dashboard/ourteams");
-                    //         }, 1000);
-                    //     } else {
-                    //         toast.error("Failed to book appointment. Please try again.");
-                    //     }
-                    // } catch (error) {
-                    //     toast.error("Failed to book appointment. Please try again.");
-                    // }
+                            setTimeout(() => {
+                                router.push("/dashboard/ourteams");
+                            }, 1000);
+                        } else {
+                            toast.error("Failed to book appointment. Please try again.");
+                        }
+                    } catch (error) {
+                        toast.error("Failed to book appointment. Please try again.");
+                    }
                 } else {
                     toast.error("Failed to book appointment. Please try again.");
                 }
@@ -164,6 +188,91 @@ export default function AppointmentPage() {
             toast.error("Please select a time slot to book an appointment.");
         }
     };
+
+    useEffect(() => {
+        const handleDateChange = async (date: string) => {
+            // Convert the selected date string into a Date object.
+            const selectedDateObj = new Date(date);
+            // Get the day in short format (e.g., "MON", "TUE") and convert to uppercase.
+            const selectedDateDay = selectedDateObj.toLocaleString("en-US", { weekday: "short" }).toUpperCase();
+
+            // Save the selected day in state (useful for UI or further logic).
+            setSelectedDateDay(selectedDateDay);
+
+            // If there are no appointments, exit early.
+            if (!appointments) return;
+
+            // Filter appointments based on the following:
+            // 1. The selected date must fall within the appointment's date range.
+            // 2. The selected date should not be an excluded date.
+            // 3. The appointment must be available for the selected day.
+            const validAppointments = appointments.filter((appointment) => {
+                const startDate = new Date(appointment.dateRange.startDate);
+                const endDate = new Date(appointment.dateRange.endDate);
+
+                // Check for any excluded dates.
+                const excludeDates = appointment.excludedDates || [];
+                const isExcluded = excludeDates.some((exclude) => {
+                    const excludeStart = new Date(exclude.startDate);
+                    const excludeEnd = exclude.endDate ? new Date(exclude.endDate) : excludeStart;
+
+                    if (exclude.type === "single") {
+                        return selectedDateObj.toDateString() === excludeStart.toDateString();
+                    } else if (exclude.type === "range") {
+                        return selectedDateObj >= excludeStart && selectedDateObj <= excludeEnd;
+                    }
+                    return false;
+                });
+
+                // Get the schedule for the selected day (e.g., "MON") from weeklySchedule.
+                const scheduleForSelectedDay = appointment.weeklySchedule[selectedDateDay];
+                const isAvailableForSelectedDay = scheduleForSelectedDay && scheduleForSelectedDay.isAvailable;
+
+                return selectedDateObj >= startDate && selectedDateObj <= endDate && !isExcluded && isAvailableForSelectedDay;
+            });
+
+            // For each valid appointment, update the weeklySchedule so that only the selected day is kept.
+            // Then filter out the time slots that are booked for that day if the selected date equals booked appointment's dateRange.startDate.
+            const updatedAppointments = validAppointments.map((appointment) => {
+                // Get the schedule for the selected day.
+                const scheduleForSelectedDay = appointment.weeklySchedule[selectedDateDay];
+
+                // Filter out any time slot that is already booked on the selected date.
+                const filteredTimeSlots = scheduleForSelectedDay.timeSlots.filter((slot: any) => {
+                    // Check if any booked appointment exists for this time slot on the selected date.
+                    const isBooked = bookedAppointments.some((booked) => {
+                        const bookedDate = new Date(booked.dateRange.startDate);
+                        // Compare the booked date with the selected date.
+                        const isSameDate = bookedDate.toDateString() === selectedDateObj.toDateString();
+                        // Check if the booked appointment is for the same day (e.g., "MON").
+                        const isSameDay = booked.day === selectedDateDay;
+                        // Verify that the time slot matches.
+                        const isSameTimeSlot = booked.timeSlot.startTime === slot.startTime && booked.timeSlot.endTime === slot.endTime;
+                        return isSameDate && isSameDay && isSameTimeSlot;
+                    });
+                    // Only keep the slot if it is not booked.
+                    return !isBooked;
+                });
+
+                // Return a new appointment object with an updated weeklySchedule
+                // that only contains the selected day's schedule and its filtered time slots.
+                return {
+                    ...appointment,
+                    weeklySchedule: {
+                        [selectedDateDay]: {
+                            ...scheduleForSelectedDay,
+                            timeSlots: filteredTimeSlots,
+                        },
+                    },
+                };
+            });
+
+            console.log("Filtered & Updated Appointments:", updatedAppointments);
+            setFilteredAppointments(updatedAppointments);
+        };
+
+        handleDateChange(selectedDate);
+    }, [selectedDate, appointments, bookedAppointments]);
 
     return (
         <div className={`min-h-screen bg-gray-50 ${poppins.className}`}>
@@ -259,7 +368,6 @@ export default function AppointmentPage() {
                     </div>
                 </div>
             </div>
-
             {/* Doctor Details Section */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 text-gray-500">
                 <h2 className="text-3xl font-semibold text-gray-800 mb-6">Doctor Information</h2>
@@ -287,38 +395,48 @@ export default function AppointmentPage() {
                     </div>
                 </div>
             </div>
-
             {/* Appointment Details Section */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 text-gray-500">
                 <h2 className="text-3xl font-semibold text-gray-800 mb-6">Appointments</h2>
-                {appointments?.length === 0 && (
+                {/* Calendar to select a date */}
+                <div className="mb-6">
+                    <label htmlFor="appointment-date" className="block text-lg font-medium text-gray-800 mb-2">
+                        Select a Date
+                    </label>
+                    <input
+                        type="date"
+                        id="appointment-date"
+                        className="border border-gray-300 rounded-md p-2"
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                    />
+                </div>
+
+                {filteredAppointments?.length === 0 && (
                     <div className="bg-white p-6 rounded-lg shadow-lg mb-6">
                         <h3 className="px-4 py-2 text-left text-gray-600">No appointments available</h3>
                     </div>
                 )}
-                {appointments?.length !== 0 &&
-                    appointments?.map((appointment: any) => (
+
+                {selectedDate != "" &&
+                    filteredAppointments?.length !== 0 &&
+                    filteredAppointments?.map((appointment: any) => (
                         <div key={appointment._id} className="bg-white p-6 rounded-lg shadow-lg mb-6">
-                            <h3 className="text-xl font-semibold text-gray-900 mb-4">Date Range</h3>
+                            <h3 className="text-xl font-semibold text-gray-900 mb-4">Date</h3>
                             <p>
-                                {new Date(appointment.dateRange.startDate).toLocaleDateString("en-GB", {
+                                {new Date(selectedDate).toLocaleDateString("en-GB", {
                                     day: "2-digit",
                                     month: "long",
                                     year: "numeric",
                                 })}{" "}
-                                -{" "}
-                                {new Date(appointment.dateRange.endDate).toLocaleDateString("en-GB", {
-                                    day: "2-digit",
-                                    month: "long",
-                                    year: "numeric",
-                                })}
+                                {selectedDateDay}
                             </p>
                             <div className="mt-6">
                                 <h4 className="text-lg font-medium text-gray-800 mb-4">Weekly Schedule</h4>
                                 <table className="min-w-full table-auto">
                                     <thead>
                                         <tr>
-                                            <th className="px-4 py-2 text-left text-gray-600">Day</th>
+                                            {/* <th className="px-4 py-2 text-left text-gray-600">Day</th> */}
                                             <th className="px-4 py-2 text-center text-gray-600">Time Slots</th>
                                         </tr>
                                     </thead>
@@ -327,7 +445,7 @@ export default function AppointmentPage() {
                                             const schedule = appointment.weeklySchedule[day];
                                             return schedule.isAvailable && schedule.timeSlots.length > 0 ? (
                                                 <tr key={schedule._id}>
-                                                    <td className="px-4 py-2">{day}</td>
+                                                    {/* <td className="px-4 py-2">{day}</td> */}
                                                     <td className="px-4 py-2 ">
                                                         {schedule.timeSlots.map((slot: any) => (
                                                             <div
@@ -369,14 +487,16 @@ export default function AppointmentPage() {
             </div>
 
             {/* Submit Button */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 text-right">
-                <button
-                    onClick={handleSubmit}
-                    className="px-6 py-3 text-white bg-pink-600 rounded-full hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
-                >
-                    Submit Appointment
-                </button>
-            </div>
+            {selectedDate != "" && filteredAppointments?.length !== 0 && (
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 text-right">
+                    <button
+                        onClick={handleSubmit}
+                        className="px-6 py-3 text-white bg-pink-600 rounded-full hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
+                    >
+                        Submit Appointment
+                    </button>
+                </div>
+            )}
         </div>
     );
 }
