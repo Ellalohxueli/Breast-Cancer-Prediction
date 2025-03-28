@@ -210,10 +210,14 @@ export default function DoctorDashboard() {
         });
         setError('');
 
-        // Validate phone number
-        if (!doctorProfile.phone || String(doctorProfile.phone).length < 10) {
+        // Update phone validation
+        const phoneWithoutPrefix = String(doctorProfile.phone).startsWith('60') 
+            ? String(doctorProfile.phone).slice(2) 
+            : String(doctorProfile.phone);
+
+        if (!phoneWithoutPrefix || phoneWithoutPrefix.length < 9 || phoneWithoutPrefix.length > 10) {
             setFormErrors({
-                phone: 'Valid phone number is required'
+                phone: 'Phone number must be between 9 and 10 digits'
             });
             return;
         }
@@ -1157,7 +1161,8 @@ export default function DoctorDashboard() {
                                                                 ? 'bg-gray-700 text-white'
                                                                 : 'bg-white text-gray-900'
                                                         } border focus:ring-2 focus:ring-pink-500`}
-                                                        placeholder="1123456789"
+                                                        placeholder="189670225"
+                                                        minLength={9}
                                                         maxLength={10}
                                                         pattern="[0-9]*"
                                                     />

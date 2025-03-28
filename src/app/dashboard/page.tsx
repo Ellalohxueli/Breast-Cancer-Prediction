@@ -340,7 +340,6 @@ export default function DashboardPage() {
             phone: ''
         });
 
-        // Validate fields
         let hasErrors = false;
         const newErrors = {
             firstName: '',
@@ -358,8 +357,13 @@ export default function DashboardPage() {
             hasErrors = true;
         }
 
-        if (!editedUser.phone || editedUser.phone.length < 10) {
-            newErrors.phone = 'Valid phone number is required';
+        // Update phone validation
+        const phoneWithoutPrefix = String(editedUser.phone).startsWith('60') 
+            ? String(editedUser.phone).slice(2) 
+            : String(editedUser.phone);
+
+        if (!phoneWithoutPrefix || phoneWithoutPrefix.length < 9 || phoneWithoutPrefix.length > 10) {
+            newErrors.phone = 'Phone number must be between 9 and 10 digits';
             hasErrors = true;
         }
 
@@ -464,6 +468,37 @@ export default function DashboardPage() {
                 currentPassword: errorMessage
             }));
         }
+    };
+
+    const handleCancelClick = () => {
+        // Reset profile form
+        setEditedUser({
+            firstName: user.firstName,
+            lastName: user.lastName,
+            phone: user.phone
+        });
+        
+        // Reset password form
+        setPasswordForm({
+            currentPassword: '',
+            newPassword: '',
+            confirmPassword: ''
+        });
+        
+        // Clear all errors
+        setFormErrors({
+            firstName: '',
+            lastName: '',
+            phone: ''
+        });
+        setPasswordErrors({
+            currentPassword: '',
+            newPassword: '',
+            confirmPassword: ''
+        });
+        
+        // Close modal
+        setIsProfileModalOpen(false);
     };
 
     return (
@@ -907,7 +942,7 @@ export default function DashboardPage() {
                                     </p>
                                 </div>
                                 <button 
-                                    onClick={() => setIsProfileModalOpen(false)}
+                                    onClick={handleCancelClick}
                                     className="text-gray-400 hover:text-gray-500 transition-colors"
                                 >
                                     <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1011,6 +1046,7 @@ export default function DashboardPage() {
                                                             formErrors.phone ? 'border-red-500' : 'border-gray-300'
                                                         } rounded-md text-black focus:border-pink-500 focus:ring-1 focus:ring-pink-500`}
                                                         placeholder="1123456789"
+                                                        minLength={9}
                                                         maxLength={10}
                                                         pattern="[0-9]*"
                                                     />
@@ -1087,7 +1123,7 @@ export default function DashboardPage() {
                         {/* Modal Footer */}
                         <div className="px-6 py-4 bg-gray-50/95 backdrop-blur-sm rounded-b-lg flex justify-end space-x-3">
                             <button
-                                onClick={() => setIsProfileModalOpen(false)}
+                                onClick={handleCancelClick}
                                 className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
                             >
                                 Cancel

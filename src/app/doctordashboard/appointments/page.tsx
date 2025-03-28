@@ -453,7 +453,7 @@ export default function AppointmentsPage() {
             setSubmitMessage({ type: "", message: "" });
 
             // Retrieve doctorId from localStorage or context
-            const doctorName = localStorage.getItem("name") || "sampleDoctorId"; // Replace 'sampleDoctorId' with actual logic
+            const doctorName = localStorage.getItem("name") || "sampleDoctorId";
 
             if (!doctorName) {
                 setSubmitMessage({ type: "error", message: "Doctor ID not found. Please log in again." });
@@ -472,6 +472,25 @@ export default function AppointmentsPage() {
 
             if (!durationInMinutes || isNaN(durationInMinutes)) {
                 setSubmitMessage({ type: "error", message: "Please select a valid duration." });
+                return;
+            }
+
+            // Get date range from inputs
+            const startDateInput = document.querySelector('input[name="start-date"]') as HTMLInputElement;
+            const endDateInput = document.querySelector('input[name="end-date"]') as HTMLInputElement;
+
+            // Validate date inputs
+            if (!startDateInput?.value || !endDateInput?.value) {
+                setSubmitMessage({ type: "error", message: "Please select both start and end dates." });
+                return;
+            }
+
+            const startDate = new Date(startDateInput.value);
+            const endDate = new Date(endDateInput.value);
+
+            // Validate date range
+            if (endDate < startDate) {
+                setSubmitMessage({ type: "error", message: "End date cannot be before start date." });
                 return;
             }
 
@@ -519,25 +538,6 @@ export default function AppointmentsPage() {
                     };
                 }
             });
-
-            // Get date range from inputs
-            const startDateInput = document.querySelector('input[name="start-date"]') as HTMLInputElement;
-            const endDateInput = document.querySelector('input[name="end-date"]') as HTMLInputElement;
-
-            // Check if date range inputs are provided
-            let startDate = new Date();
-            let endDate = new Date(startDate);
-
-            if (startDateInput?.value) {
-                startDate = new Date(startDateInput.value);
-            }
-            if (endDateInput?.value) {
-                endDate = new Date(endDateInput.value);
-            }
-
-            if (endDate < startDate) {
-                endDate.setFullYear(startDate.getFullYear() + 1);
-            }
 
             const appointmentData = {
                 doctorName,
@@ -747,6 +747,7 @@ export default function AppointmentsPage() {
         }
     };
 
+    // Update the handleSaveProfile function
     const handleSaveProfile = async () => {
         // Reset errors
         setFormErrors({
@@ -754,10 +755,14 @@ export default function AppointmentsPage() {
         });
         setError('');
 
-        // Validate phone number
-        if (!doctorProfile.phone || String(doctorProfile.phone).length < 10) {
+        // Update phone validation
+        const phoneWithoutPrefix = String(doctorProfile.phone).startsWith('60') 
+            ? String(doctorProfile.phone).slice(2) 
+            : String(doctorProfile.phone);
+
+        if (!phoneWithoutPrefix || phoneWithoutPrefix.length < 9 || phoneWithoutPrefix.length > 10) {
             setFormErrors({
-                phone: 'Valid phone number is required'
+                phone: 'Phone number must be between 9 and 10 digits'
             });
             return;
         }
@@ -774,7 +779,7 @@ export default function AppointmentsPage() {
             });
 
             if (response.data.success) {
-                handleCloseModal(); // Use handleCloseModal instead of just setIsProfileModalOpen(false)
+                handleCloseModal(); // Use handleCloseModal instead of setIsProfileModalOpen(false)
                 setProfileSuccessMessage(true);
                 
                 setTimeout(() => {
@@ -1270,6 +1275,7 @@ export default function AppointmentsPage() {
                                                     <label className={`block text-base font-medium mb-1.5 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>Start Date</label>
                                                     <input
                                                         type="date"
+                                                        name="start-date"
                                                         className={`w-full rounded-lg border text-base ${
                                                             isDarkMode ? "bg-gray-700 border-gray-600 text-gray-200" : "bg-white border-gray-300 text-gray-900"
                                                         } px-3 py-2`}
@@ -1279,6 +1285,7 @@ export default function AppointmentsPage() {
                                                     <label className={`block text-base font-medium mb-1.5 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>End Date</label>
                                                     <input
                                                         type="date"
+                                                        name="end-date"
                                                         className={`w-full rounded-lg border text-base ${
                                                             isDarkMode ? "bg-gray-700 border-gray-600 text-gray-200" : "bg-white border-gray-300 text-gray-900"
                                                         } px-3 py-2`}
@@ -1798,7 +1805,8 @@ export default function AppointmentsPage() {
                                                                 ? 'bg-gray-700 text-white'
                                                                 : 'bg-white text-gray-900'
                                                         } border focus:ring-2 focus:ring-pink-500`}
-                                                        placeholder="1123456789"
+                                                        placeholder="189670225"
+                                                        minLength={9}
                                                         maxLength={10}
                                                         pattern="[0-9]*"
                                                     />
