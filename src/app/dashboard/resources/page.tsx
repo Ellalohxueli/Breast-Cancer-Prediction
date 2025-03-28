@@ -574,6 +574,14 @@ export default function ResourcesPage() {
                                     </Link>
                                 </li>
                                 <li>
+                                    <Link 
+                                        href="/dashboard/appointments" 
+                                        className="text-gray-600 hover:text-pink-600 font-medium"
+                                    >
+                                        Appointments
+                                    </Link>
+                                </li>
+                                <li>
                                     <a href="#" className="text-gray-600 hover:text-pink-600 relative">
                                         <div className="relative">
                                             <BiMessageRounded className="h-6 w-6" />
