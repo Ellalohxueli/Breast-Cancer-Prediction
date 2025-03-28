@@ -86,10 +86,9 @@ export default function AdminDashboard() {
     useEffect(() => {
         const fetchUserCount = async () => {
             try {
-                const response = await fetch('/api/admin/patients');
-                const data = await response.json();
-                if (data.success) {
-                    setUserCount(data.userCount);
+                const response = await axios.get('/api/admin/patients');
+                if (response.data.success) {
+                    setUserCount(response.data.count);
                 }
             } catch (error) {
                 console.error('Error fetching user count:', error);
@@ -517,13 +516,22 @@ export default function AdminDashboard() {
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center space-x-2 w-[100px]">
-                                                        <div className={`w-2 h-2 rounded-full ${
-                                                            doctor.status === 'Active' 
-                                                                ? 'bg-green-500'
-                                                                : doctor.status === 'Busy'
-                                                                ? 'bg-yellow-500'
-                                                                : 'bg-red-500'
-                                                        }`}></div>
+                                                        {doctor.status === 'Active' ? (
+                                                            // Active status - green dot
+                                                            <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                                        ) : doctor.status === 'Busy' ? (
+                                                            // Busy status - red dot
+                                                            <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                                                        ) : (
+                                                            // Out of Office status - gray circle with cross
+                                                            <div className="relative">
+                                                                <div className="w-2 h-2 rounded-full bg-gray-400 flex items-center justify-center">
+                                                                    <svg className="w-1.5 h-1.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                         <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                                                             {doctor.status}
                                                         </span>

@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { FiHome, FiUsers, FiCalendar, FiSettings, FiFileText, FiUserPlus, FiSun, FiMoon, FiBell, FiSearch, FiMessageCircle, FiChevronDown, FiChevronRight } from 'react-icons/fi';
-import { FaUserDoctor } from 'react-icons/fa6';
+import { FaUserDoctor, FaEye } from 'react-icons/fa6';
+import { FaSearch } from 'react-icons/fa';
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import useCheckCookies from '@/controller/UseCheckCookie';
@@ -18,6 +19,17 @@ type NavigationItem = {
     component?: React.ReactNode;
 };
 
+// First, update the handleViewPatient function to use a proper patient interface
+interface Patient {
+    _id: string;
+    firstname: string;
+    lastname: string;
+    dob: string;
+    sex: string;
+    phone: string | number;
+    email: string;
+}
+
 export default function PatientsPage() {
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [firstName, setFirstName] = useState('');
@@ -25,6 +37,12 @@ export default function PatientsPage() {
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [showInfoDropdown, setShowInfoDropdown] = useState(false);
     const pathname = usePathname();
+    const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+    const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [patients, setPatients] = useState<Patient[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useCheckCookies();
 
@@ -91,9 +109,21 @@ export default function PatientsPage() {
 
                     {showInfoDropdown && (
                         <div 
-                            className={`absolute left-full top-0 ml-2 w-48 rounded-md shadow-lg ${
+                            className={`fixed ml-[248px] w-48 rounded-md shadow-lg ${
                                 isDarkMode ? 'bg-gray-700' : 'bg-white'
-                            } py-1 z-50`}
+                            } py-1 z-[150]`}
+                            style={{
+                                top: 'var(--dropdown-top)',
+                            }}
+                            ref={(el) => {
+                                if (el) {
+                                    const button = el.previousElementSibling;
+                                    if (button) {
+                                        const rect = button.getBoundingClientRect();
+                                        el.style.setProperty('--dropdown-top', `${rect.top}px`);
+                                    }
+                                }
+                            }}
                         >
                             <Link 
                                 href="/admindashboard/manage-services"
@@ -122,10 +152,77 @@ export default function PatientsPage() {
         }
     ];
 
+    // Add fetchPatients function
+    const fetchPatients = async () => {
+        try {
+            setLoading(true);
+            const response = await axios.get('/api/admin/patients');
+            if (response.data.success) {
+                setPatients(response.data.patients);
+            }
+        } catch (error) {
+            console.error('Error fetching patients:', error);
+            setError('Failed to load patients');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Use useEffect to fetch patients when component mounts
+    useEffect(() => {
+        fetchPatients();
+    }, []);
+
+    // Update the handleViewPatient function
+    const handleViewPatient = (patient: Patient) => {
+        setSelectedPatient(patient);
+        setIsViewModalOpen(true);
+    };
+
+    // Update the search functionality
+    const filteredPatients = patients.filter(patient => {
+        const searchLower = searchQuery.toLowerCase();
+        return (
+            patient.firstname.toLowerCase().includes(searchLower) ||
+            patient.lastname.toLowerCase().includes(searchLower) ||
+            patient.email.toLowerCase().includes(searchLower)
+        );
+    });
+
+    // Update the maskPhoneNumber function
+    const maskPhoneNumber = (phone: string | number) => {
+        // Convert to string if it's a number
+        let phoneStr = String(phone);
+        
+        // Remove any non-digit characters
+        let cleanPhone = phoneStr.replace(/\D/g, '');
+        
+        // Ensure it starts with '60'
+        if (!cleanPhone.startsWith('60')) {
+            cleanPhone = '60' + cleanPhone;
+        }
+
+        // Get the carrier prefix (60XX)
+        const carrierPrefix = cleanPhone.slice(0, 4);
+        
+        // Handle different formats based on carrier prefix
+        if (carrierPrefix.startsWith('6011')) {
+            // For 6011 numbers (11 digits total)
+            const firstPart = cleanPhone.slice(0, 4);    // 6011
+            const lastPart = cleanPhone.slice(8);        // last 4 digits
+            return `+${firstPart}-XXXX-${lastPart}`;
+        } else {
+            // For other numbers (60XX) (10 digits total)
+            const firstPart = cleanPhone.slice(0, 4);    // 60XX
+            const lastPart = cleanPhone.slice(7);        // last 4 digits
+            return `+${firstPart}-XXX-${lastPart}`;
+        }
+    };
+
     return (
         <div className={`flex min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
             {/* Sidebar - Fixed */}
-            <div className={`w-64 shadow-lg flex flex-col justify-between fixed left-0 top-0 h-screen ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`w-64 shadow-lg flex flex-col justify-between fixed left-0 top-0 h-screen z-[100] ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
                 <div>
                     <div className="p-6">
                         <div className="flex flex-col items-center">
@@ -257,10 +354,257 @@ export default function PatientsPage() {
                 </div>
 
                 {/* Main Content - With increased top padding */}
-                <div className="flex-1 p-4 pt-28 overflow-y-auto">
-                    {/* Your patients page content goes here */}
+                <div className="flex-1 p-4 pt-28">
+                    {/* Search Bar */}
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="relative w-96">
+                            <input
+                                type="text"
+                                placeholder="Search by patient name..."
+                                className={`w-full pl-10 pr-4 py-2 rounded-lg border ${
+                                    isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-200' : 'bg-white border-gray-200 text-gray-700'
+                                } focus:outline-none focus:border-pink-500`}
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                            <FiSearch className={`absolute left-3 top-3 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                        </div>
+                    </div>
+
+                    {/* Patients Table */}
+                    <div className={`rounded-lg shadow overflow-hidden relative z-[1] ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full">
+                                <thead className={`${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                    <tr>
+                                        <th className={`w-2/12 px-6 py-3 text-left text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                                            First Name
+                                        </th>
+                                        <th className={`w-2/12 px-6 py-3 text-left text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                                            Last Name
+                                        </th>
+                                        <th className={`w-2/12 px-6 py-3 text-left text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                                            Date of Birth
+                                        </th>
+                                        <th className={`w-1/12 px-6 py-3 text-left text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                                            Gender
+                                        </th>
+                                        <th className={`w-2/12 px-6 py-3 text-left text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                                            Phone Number
+                                        </th>
+                                        <th className={`w-2/12 px-6 py-3 text-left text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                                            Email
+                                        </th>
+                                        <th className={`w-1/12 px-6 py-3 text-center text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                                            Actions
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className={`${isDarkMode ? 'text-gray-300' : 'text-gray-700'} divide-y ${isDarkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                                    {loading ? (
+                                        <tr>
+                                            <td colSpan={7} className="px-6 py-4 text-center">
+                                                <div className="flex justify-center">
+                                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : error ? (
+                                        <tr>
+                                            <td colSpan={7} className="px-6 py-4 text-center text-red-500">
+                                                {error}
+                                            </td>
+                                        </tr>
+                                    ) : filteredPatients.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={7} className="px-6 py-4 text-center">
+                                                No patients found
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredPatients.map((patient) => (
+                                            <tr key={patient._id} className={`${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm font-medium">{patient.firstname}</div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm font-medium">{patient.lastname}</div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm">
+                                                        {new Date(patient.dob).toLocaleDateString()}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`inline-block px-3 py-1 rounded-full text-sm ${
+                                                        patient.sex.toLowerCase() === 'male' 
+                                                            ? isDarkMode 
+                                                                ? 'bg-blue-400/10 text-blue-400' 
+                                                                : 'bg-blue-100 text-blue-800'
+                                                            : isDarkMode 
+                                                                ? 'bg-pink-400/10 text-pink-400' 
+                                                                : 'bg-pink-100 text-pink-800'
+                                                    }`}>
+                                                        {patient.sex.charAt(0).toUpperCase() + patient.sex.slice(1)}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm">{maskPhoneNumber(patient.phone)}</div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm truncate max-w-[200px]">
+                                                        {patient.email}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="flex justify-center">
+                                                        <button 
+                                                            onClick={() => handleViewPatient(patient)}
+                                                            className={`${isDarkMode ? 'text-blue-400' : 'text-blue-600'} hover:opacity-80`} 
+                                                            title="View"
+                                                        >
+                                                            <FaEye className="w-5 h-5" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
+
+            {/* Patient View Modal */}
+            {isViewModalOpen && selectedPatient && (
+                <div className="fixed inset-0 z-50">
+                    {/* Backdrop */}
+                    <div 
+                        className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+                        onClick={() => setIsViewModalOpen(false)}
+                    />
+
+                    {/* Modal */}
+                    <div className="absolute inset-0 flex items-center justify-center p-4">
+                        <div className={`w-full max-w-2xl rounded-xl shadow-lg ${
+                            isDarkMode ? 'bg-gray-800' : 'bg-white'
+                        } max-h-[85vh] overflow-hidden flex flex-col`}>
+                            {/* Modal Header */}
+                            <div className={`p-4 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                                <div className="flex justify-between items-center">
+                                    <h2 className={`text-xl font-semibold ${
+                                        isDarkMode ? 'text-white' : 'text-gray-900'
+                                    }`}>
+                                        Patient Details
+                                    </h2>
+                                    <button 
+                                        onClick={() => setIsViewModalOpen(false)}
+                                        className={`p-2 rounded-lg transition-colors ${
+                                            isDarkMode 
+                                                ? 'hover:bg-gray-700 text-gray-400' 
+                                                : 'hover:bg-gray-100 text-gray-500'
+                                        }`}
+                                    >
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Modal Content */}
+                            <div className="p-4 overflow-y-auto">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className={`block text-sm font-medium ${
+                                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                        }`}>
+                                            First Name
+                                        </label>
+                                        <p className={`mt-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                            {selectedPatient.firstname}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium ${
+                                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                        }`}>
+                                            Last Name
+                                        </label>
+                                        <p className={`mt-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                            {selectedPatient.lastname}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium ${
+                                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                        }`}>
+                                            Date of Birth
+                                        </label>
+                                        <p className={`mt-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                            {new Date(selectedPatient.dob).toLocaleDateString()}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium ${
+                                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                        }`}>
+                                            Gender
+                                        </label>
+                                        <p className={`mt-1 inline-block px-3 py-1 rounded-full text-sm ${
+                                            selectedPatient.sex.toLowerCase() === 'male'
+                                                ? isDarkMode 
+                                                    ? 'bg-blue-400/10 text-blue-400' 
+                                                    : 'bg-blue-100 text-blue-800'
+                                                : isDarkMode 
+                                                    ? 'bg-pink-400/10 text-pink-400' 
+                                                    : 'bg-pink-100 text-pink-800'
+                                        }`}>
+                                            {selectedPatient.sex.charAt(0).toUpperCase() + selectedPatient.sex.slice(1)}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium ${
+                                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                        }`}>
+                                            Phone Number
+                                        </label>
+                                        <p className={`mt-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                            {maskPhoneNumber(selectedPatient.phone)}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium ${
+                                            isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                        }`}>
+                                            Email
+                                        </label>
+                                        <p className={`mt-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                            {selectedPatient.email}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Modal Footer */}
+                            <div className={`p-4 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                                <button
+                                    onClick={() => setIsViewModalOpen(false)}
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                                        isDarkMode
+                                            ? 'bg-gray-700 hover:bg-gray-600 text-white'
+                                            : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                                    }`}
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

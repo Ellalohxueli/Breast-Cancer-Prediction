@@ -39,7 +39,7 @@ const doctorSchema = new mongoose.Schema({
     status: {
         type: String,
         default: 'Active',
-        enum: ['Active', 'Busy', 'Absent'],
+        enum: ['Active', 'Busy', 'Out of Office'],
     },
     role: {
         type: String,

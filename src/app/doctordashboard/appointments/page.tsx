@@ -78,6 +78,7 @@ export default function AppointmentsPage() {
     });
     const [profileSuccessMessage, setProfileSuccessMessage] = useState(false);
     const [error, setError] = useState('');
+    const [currentStatus, setCurrentStatus] = useState('');
 
     // Check Cookies Token
     useCheckCookies();
@@ -235,9 +236,12 @@ export default function AppointmentsPage() {
             try {
                 const response = await axios.get('/api/doctors/profile');
                 if (response.data.success) {
+                    const status = response.data.data.status;
+                    setCurrentStatus(status);
                     setDoctorProfile(prev => ({
                         ...prev,
-                        status: response.data.data.status || 'active'
+                        ...response.data.data,
+                        status: status
                     }));
                 }
             } catch (error) {
@@ -729,16 +733,46 @@ export default function AppointmentsPage() {
     }, [isProfileModalOpen]);
 
     // Add these handler functions
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         
         if (name === 'phone') {
-            // Only allow numbers
             const numbersOnly = value.replace(/[^0-9]/g, '');
             setDoctorProfile(prev => ({
                 ...prev,
                 [name]: numbersOnly ? `60${numbersOnly}` : ''
             }));
+        } else if (name === 'status') {
+            // Update both states immediately
+            const newStatus = value;
+            setCurrentStatus(newStatus);
+            setDoctorProfile(prev => ({
+                ...prev,
+                status: newStatus
+            }));
+
+            try {
+                const formData = new FormData();
+                formData.append('status', newStatus);
+                
+                await axios.put('/api/doctors/profile', formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data'
+                    }
+                });
+            } catch (error) {
+                console.error('Error updating status:', error);
+                // If there's an error, revert both states
+                const prevStatus = await axios.get('/api/doctors/profile');
+                if (prevStatus.data.success) {
+                    const revertStatus = prevStatus.data.data.status;
+                    setCurrentStatus(revertStatus);
+                    setDoctorProfile(prev => ({
+                        ...prev,
+                        status: revertStatus
+                    }));
+                }
+            }
         } else {
             setDoctorProfile(prev => ({
                 ...prev,
@@ -749,28 +783,19 @@ export default function AppointmentsPage() {
 
     // Update the handleSaveProfile function
     const handleSaveProfile = async () => {
-        // Reset errors
         setFormErrors({
             phone: ''
         });
         setError('');
 
-        // Update phone validation
-        const phoneWithoutPrefix = String(doctorProfile.phone).startsWith('60') 
-            ? String(doctorProfile.phone).slice(2) 
-            : String(doctorProfile.phone);
-
-        if (!phoneWithoutPrefix || phoneWithoutPrefix.length < 9 || phoneWithoutPrefix.length > 10) {
-            setFormErrors({
-                phone: 'Phone number must be between 9 and 10 digits'
-            });
-            return;
-        }
-
         try {
+            // Get current time in Malaysia timezone (UTC+8)
+            const malaysiaOffset = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+            const malaysiaTime = new Date(Date.now() + malaysiaOffset);
+
             const formData = new FormData();
             formData.append('phone', doctorProfile.phone);
-            formData.append('status', doctorProfile.status);
+            formData.append('updatedAt', malaysiaTime.toISOString());
 
             const response = await axios.put('/api/doctors/profile', formData, {
                 headers: {
@@ -779,7 +804,7 @@ export default function AppointmentsPage() {
             });
 
             if (response.data.success) {
-                handleCloseModal(); // Use handleCloseModal instead of setIsProfileModalOpen(false)
+                handleCloseModal();
                 setProfileSuccessMessage(true);
                 
                 setTimeout(() => {
@@ -828,34 +853,23 @@ export default function AppointmentsPage() {
     };
 
     // Add this helper function near the top of your component
-    const getStatusIndicator = (status: string) => {
-        switch (status) {
-            case 'active':
-                return (
-                    <div className="relative">
-                        <div className="w-2.5 h-2.5 bg-green-500 rounded-full"></div>
-                    </div>
-                );
-            case 'busy':
-                return (
-                    <div className="relative">
-                        <div className="w-2.5 h-2.5 bg-red-500 rounded-full"></div>
-                    </div>
-                );
-            case 'out_of_office':
-                return (
-                    <div className="relative">
-                        <div className="w-2.5 h-2.5 bg-gray-400 rounded-full flex items-center justify-center">
-                            <svg className="w-1.5 h-1.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                            </svg>
-                        </div>
-                    </div>
-                );
-            default:
-                return null;
-        }
-    };
+    const StatusIndicator = ({ status }: { status: string }) => (
+        <div className={`w-3 h-3 rounded-full border-2 border-white ${
+            status === 'Active' 
+                ? 'bg-green-500'
+                : status === 'Busy'
+                ? 'bg-red-500'
+                : 'bg-gray-400'
+        }`}>
+            {status === 'Out of Office' && (
+                <div className="w-full h-full flex items-center justify-center">
+                    <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                </div>
+            )}
+        </div>
+    );
 
     return (
         <div className={`min-h-screen ${isDarkMode ? "bg-gray-900" : "bg-gray-100"} ${poppins.className}`}>
@@ -986,9 +1000,11 @@ export default function AppointmentsPage() {
                                             </span>
                                         )}
                                     </div>
-                                    {/* Status Indicator */}
-                                    <div className="absolute -bottom-0.5 -right-0.5">
-                                        {getStatusIndicator(doctorProfile.status)}
+                                    {/* Add status indicator */}
+                                    <div className="absolute -bottom-1 -right-1">
+                                        <div className="bg-white dark:bg-gray-800 rounded-full p-0.5">
+                                            <StatusIndicator status={currentStatus} />
+                                        </div>
                                     </div>
                                 </div>
                                 <div className={`flex items-center space-x-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
@@ -1717,20 +1733,28 @@ export default function AppointmentsPage() {
                                         {/* Profile Image and Name */}
                                         <div className="flex items-center justify-between mb-4">
                                             <div className="flex items-center space-x-4">
-                                                <div className="w-16 h-16 rounded-full bg-pink-200 flex items-center justify-center overflow-hidden">
-                                                    {(doctorProfile.image || profileImage) ? (
-                                                        <Image 
-                                                            src={doctorProfile.image || profileImage}
-                                                            alt="Profile"
-                                                            width={64}
-                                                            height={64}
-                                                            className="w-full h-full object-cover"
-                                                        />
-                                                    ) : (
-                                                        <span className={`text-xl font-medium ${isDarkMode ? 'text-gray-800' : 'text-pink-800'}`}>
-                                                            {doctorName.charAt(0)}
-                                                        </span>
-                                                    )}
+                                                <div className="relative">
+                                                    <div className="w-16 h-16 rounded-full bg-pink-200 flex items-center justify-center overflow-hidden">
+                                                        {(doctorProfile.image || profileImage) ? (
+                                                            <Image 
+                                                                src={doctorProfile.image || profileImage}
+                                                                alt="Profile"
+                                                                width={64}
+                                                                height={64}
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <span className={`text-xl font-medium ${isDarkMode ? 'text-gray-800' : 'text-pink-800'}`}>
+                                                                {doctorName.charAt(0)}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {/* Add status indicator */}
+                                                    <div className="absolute -bottom-1 -right-1">
+                                                        <div className="bg-white dark:bg-gray-800 rounded-full p-0.5">
+                                                            <StatusIndicator status={currentStatus} />
+                                                        </div>
+                                                    </div>
                                                 </div>
                                                 <div>
                                                     <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -1741,20 +1765,23 @@ export default function AppointmentsPage() {
                                                     </p>
                                                 </div>
                                             </div>
-                                            <div>
+                                            <div className="flex items-center space-x-2">
+                                                <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                    Status:
+                                                </span>
                                                 <select
                                                     name="status"
                                                     value={doctorProfile.status}
                                                     onChange={handleInputChange}
-                                                    className={`px-3 py-2 rounded-lg ${
+                                                    className={`px-3 py-1 text-sm rounded-lg ${
                                                         isDarkMode
                                                             ? 'bg-gray-700 border-gray-600 text-white'
                                                             : 'bg-white border-gray-300 text-gray-900'
                                                     } border focus:ring-2 focus:ring-pink-500`}
                                                 >
-                                                    <option value="active">Active</option>
-                                                    <option value="busy">Busy</option>
-                                                    <option value="out_of_office">Out of Office</option>
+                                                    <option value="Active" className="bg-white text-gray-900">Active</option>
+                                                    <option value="Busy" className="bg-white text-gray-900">Busy</option>
+                                                    <option value="Out of Office" className="bg-white text-gray-900">Out of Office</option>
                                                 </select>
                                             </div>
                                         </div>
