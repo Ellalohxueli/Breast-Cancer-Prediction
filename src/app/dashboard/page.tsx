@@ -74,12 +74,67 @@ export default function DashboardPage() {
     const [rating, setRating] = useState(0);
     const [reviewComment, setReviewComment] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [user, setUser] = useState({ firstName: '' });
+    const [user, setUser] = useState({ 
+        firstName: '',
+        lastName: '',
+        phone: ''
+    });
     const [successMessage, setSuccessMessage] = useState<'add' | null>(null);
     const [errors, setErrors] = useState<ReviewErrors>({});
     const [reviews, setReviews] = useState<Review[]>([]);
+    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile');
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [editedUser, setEditedUser] = useState({
+        firstName: '',
+        lastName: '',
+        phone: ''
+    });
+    const [formErrors, setFormErrors] = useState({
+        firstName: '',
+        lastName: '',
+        phone: ''
+    });
+    const [profileSuccessMessage, setProfileSuccessMessage] = useState(false);
+    const [passwordForm, setPasswordForm] = useState({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+    });
+    const [passwordErrors, setPasswordErrors] = useState({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+    });
 
     useCheckCookies();
+
+    useEffect(() => {
+        const fetchUserData = async () => {
+            if (isProfileModalOpen) {
+                setIsLoading(true);
+                setError('');
+                try {
+                    const response = await axios.get('/api/users/profile');
+                    if (response.data.success) {
+                        setUser(response.data.user);
+                    }
+                } catch (error: any) {
+                    console.error('Error fetching user data:', error);
+                    setError(error.response?.data?.error || 'Failed to load user data');
+                } finally {
+                    setIsLoading(false);
+                }
+            }
+        };
+
+        fetchUserData();
+    }, [isProfileModalOpen]);
+
+    useEffect(() => {
+        setEditedUser(user);
+    }, [user]);
 
     const handleHomeClick = (e: React.MouseEvent) => {
         e.preventDefault(); // Prevent default navigation
@@ -245,6 +300,172 @@ export default function DashboardPage() {
         }
     };
 
+    const handleProfileIconClick = () => {
+        setShowProfileMenu(prev => !prev);
+    };
+
+    const handleProfileClick = () => {
+        setIsProfileModalOpen(true);
+        setShowProfileMenu(false);
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        
+        if (name === 'phone') {
+            // Only allow numbers
+            const numbersOnly = value.replace(/[^\d]/g, '');
+            // Add '60' prefix if it doesn't exist
+            const formattedPhone = numbersOnly.startsWith('60') 
+                ? numbersOnly 
+                : `60${numbersOnly}`;
+            
+            setEditedUser(prev => ({
+                ...prev,
+                [name]: formattedPhone
+            }));
+        } else {
+            setEditedUser(prev => ({
+                ...prev,
+                [name]: value
+            }));
+        }
+    };
+
+    const handleSaveChanges = async () => {
+        // Reset errors
+        setFormErrors({
+            firstName: '',
+            lastName: '',
+            phone: ''
+        });
+
+        // Validate fields
+        let hasErrors = false;
+        const newErrors = {
+            firstName: '',
+            lastName: '',
+            phone: ''
+        };
+
+        if (!editedUser.firstName.trim()) {
+            newErrors.firstName = 'First name is required';
+            hasErrors = true;
+        }
+
+        if (!editedUser.lastName.trim()) {
+            newErrors.lastName = 'Last name is required';
+            hasErrors = true;
+        }
+
+        if (!editedUser.phone || editedUser.phone.length < 10) {
+            newErrors.phone = 'Valid phone number is required';
+            hasErrors = true;
+        }
+
+        if (hasErrors) {
+            setFormErrors(newErrors);
+            return;
+        }
+
+        try {
+            const response = await axios.put('/api/users/profile', editedUser);
+            if (response.data.success) {
+                setUser(editedUser);
+                setIsProfileModalOpen(false);
+                setProfileSuccessMessage(true);
+                
+                // Hide success message after 3 seconds
+                setTimeout(() => {
+                    setProfileSuccessMessage(false);
+                }, 3000);
+            }
+        } catch (error: any) {
+            console.error('Error updating profile:', error);
+            alert(error.response?.data?.error || 'Failed to update profile. Please try again.');
+        }
+    };
+
+    const handlePasswordInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setPasswordForm(prev => ({
+            ...prev,
+            [name]: value
+        }));
+        // Clear error when user types
+        setPasswordErrors(prev => ({
+            ...prev,
+            [name]: ''
+        }));
+    };
+
+    const handlePasswordChange = async () => {
+        // Reset errors
+        setPasswordErrors({
+            currentPassword: '',
+            newPassword: '',
+            confirmPassword: ''
+        });
+
+        // Validate fields
+        let hasErrors = false;
+        const newErrors = {
+            currentPassword: '',
+            newPassword: '',
+            confirmPassword: ''
+        };
+
+        if (!passwordForm.currentPassword) {
+            newErrors.currentPassword = 'Current password is required';
+            hasErrors = true;
+        }
+
+        if (!passwordForm.newPassword) {
+            newErrors.newPassword = 'New password is required';
+            hasErrors = true;
+        } else if (passwordForm.newPassword.length < 8) {
+            newErrors.newPassword = 'Password must be at least 8 characters';
+            hasErrors = true;
+        }
+
+        if (!passwordForm.confirmPassword) {
+            newErrors.confirmPassword = 'Please confirm your new password';
+            hasErrors = true;
+        } else if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+            newErrors.confirmPassword = 'Passwords do not match';
+            hasErrors = true;
+        }
+
+        if (hasErrors) {
+            setPasswordErrors(newErrors);
+            return;
+        }
+
+        try {
+            const response = await axios.put('/api/users/password', passwordForm);
+            if (response.data.success) {
+                setIsProfileModalOpen(false);
+                setProfileSuccessMessage(true);
+                // Reset form
+                setPasswordForm({
+                    currentPassword: '',
+                    newPassword: '',
+                    confirmPassword: ''
+                });
+                
+                setTimeout(() => {
+                    setProfileSuccessMessage(false);
+                }, 3000);
+            }
+        } catch (error: any) {
+            const errorMessage = error.response?.data?.error || 'Failed to update password';
+            setPasswordErrors(prev => ({
+                ...prev,
+                currentPassword: errorMessage
+            }));
+        }
+    };
+
     return (
         <div id="top" className={`min-h-screen bg-gray-50 ${poppins.className}`}>
             {/* Full width white navigation bar */}
@@ -320,7 +541,7 @@ export default function DashboardPage() {
                                 <li className="relative">
                                     <button 
                                         className="text-gray-600 hover:text-pink-600 focus:outline-none p-2 rounded-full hover:bg-gray-100"
-                                        onClick={() => setShowProfileMenu(!showProfileMenu)}
+                                        onClick={handleProfileIconClick}
                                     >
                                         <FaRegUser className="h-6 w-6" aria-label="Profile" />
                                     </button>
@@ -328,11 +549,11 @@ export default function DashboardPage() {
                                     {showProfileMenu && (
                                         <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
                                             <button
-                                                onClick={() => router.push('/profile')}
+                                                onClick={handleProfileClick}
                                                 className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                                             >
                                                 <FaRegUser className="h-4 w-4 mr-3" />
-                                                View Profile
+                                                Profile
                                             </button>
                                             <button
                                                 onClick={handleLogout}
@@ -660,10 +881,234 @@ export default function DashboardPage() {
                 </div>
             </div>
 
-            {/* Success Message */}
+            {/* Success Messages */}
             {successMessage && (
                 <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
                     Review submitted successfully!
+                </div>
+            )}
+            {profileSuccessMessage && (
+                <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+                    Profile updated successfully!
+                </div>
+            )}
+
+            {/* Profile Modal */}
+            {isProfileModalOpen && (
+                <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
+                    <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-xl w-full max-w-2xl border border-gray-200">
+                        {/* Modal Header */}
+                        <div className="p-6 border-b border-gray-200">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-gray-900">Account</h2>
+                                    <p className="text-gray-600 mt-1">
+                                        Set your account settings down below
+                                    </p>
+                                </div>
+                                <button 
+                                    onClick={() => setIsProfileModalOpen(false)}
+                                    className="text-gray-400 hover:text-gray-500 transition-colors"
+                                >
+                                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            {/* Tabs */}
+                            <div className="flex space-x-4 mt-6">
+                                <button
+                                    onClick={() => setActiveTab('profile')}
+                                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                        activeTab === 'profile'
+                                            ? 'bg-gray-100 text-pink-600'
+                                            : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    Profile
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('password')}
+                                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                        activeTab === 'password'
+                                            ? 'bg-gray-100 text-pink-600'
+                                            : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    Password
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Modal Content */}
+                        <div className="p-6">
+                            {activeTab === 'profile' ? (
+                                <div className="space-y-6">
+                                    {/* Profile Information Form */}
+                                    {error && (
+                                        <div className="bg-red-50 text-red-600 p-3 rounded-md mb-4">
+                                            {error}
+                                        </div>
+                                    )}
+                                    {isLoading ? (
+                                        <div className="text-center py-4">
+                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-600 mx-auto"></div>
+                                            <p className="mt-2 text-gray-600">Loading profile...</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    First Name
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    name="firstName"
+                                                    value={editedUser.firstName}
+                                                    onChange={handleInputChange}
+                                                    className={`w-full px-3 py-2 border ${
+                                                        formErrors.firstName ? 'border-red-500' : 'border-gray-300'
+                                                    } rounded-md text-black focus:border-pink-500 focus:ring-1 focus:ring-pink-500`}
+                                                />
+                                                {formErrors.firstName && (
+                                                    <p className="mt-1 text-sm text-red-500">{formErrors.firstName}</p>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    Last Name
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    name="lastName"
+                                                    value={editedUser.lastName}
+                                                    onChange={handleInputChange}
+                                                    className={`w-full px-3 py-2 border ${
+                                                        formErrors.lastName ? 'border-red-500' : 'border-gray-300'
+                                                    } rounded-md text-black focus:border-pink-500 focus:ring-1 focus:ring-pink-500`}
+                                                />
+                                                {formErrors.lastName && (
+                                                    <p className="mt-1 text-sm text-red-500">{formErrors.lastName}</p>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    Phone Number
+                                                </label>
+                                                <div className="relative">
+                                                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-700">
+                                                        +60
+                                                    </div>
+                                                    <input
+                                                        type="tel"
+                                                        name="phone"
+                                                        value={String(editedUser.phone).startsWith('60') 
+                                                            ? String(editedUser.phone).slice(2) 
+                                                            : String(editedUser.phone)}
+                                                        onChange={handleInputChange}
+                                                        className={`w-full pl-12 pr-3 py-2 border ${
+                                                            formErrors.phone ? 'border-red-500' : 'border-gray-300'
+                                                        } rounded-md text-black focus:border-pink-500 focus:ring-1 focus:ring-pink-500`}
+                                                        placeholder="1123456789"
+                                                        maxLength={10}
+                                                        pattern="[0-9]*"
+                                                    />
+                                                    {formErrors.phone && (
+                                                        <p className="mt-1 text-sm text-red-500">{formErrors.phone}</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {/* Password Form */}
+                                    <div>
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    Current Password
+                                                </label>
+                                                <input
+                                                    type="password"
+                                                    name="currentPassword"
+                                                    value={passwordForm.currentPassword}
+                                                    onChange={handlePasswordInputChange}
+                                                    className={`w-full px-3 py-2 border ${
+                                                        passwordErrors.currentPassword ? 'border-red-500' : 'border-gray-300'
+                                                    } rounded-md text-black focus:border-pink-500 focus:ring-1 focus:ring-pink-500`}
+                                                />
+                                                {passwordErrors.currentPassword && (
+                                                    <p className="mt-1 text-sm text-red-500">{passwordErrors.currentPassword}</p>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    New Password
+                                                </label>
+                                                <input
+                                                    type="password"
+                                                    name="newPassword"
+                                                    value={passwordForm.newPassword}
+                                                    onChange={handlePasswordInputChange}
+                                                    className={`w-full px-3 py-2 border ${
+                                                        passwordErrors.newPassword ? 'border-red-500' : 'border-gray-300'
+                                                    } rounded-md text-black focus:border-pink-500 focus:ring-1 focus:ring-pink-500`}
+                                                />
+                                                {passwordErrors.newPassword && (
+                                                    <p className="mt-1 text-sm text-red-500">{passwordErrors.newPassword}</p>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    Confirm New Password
+                                                </label>
+                                                <input
+                                                    type="password"
+                                                    name="confirmPassword"
+                                                    value={passwordForm.confirmPassword}
+                                                    onChange={handlePasswordInputChange}
+                                                    className={`w-full px-3 py-2 border ${
+                                                        passwordErrors.confirmPassword ? 'border-red-500' : 'border-gray-300'
+                                                    } rounded-md text-black focus:border-pink-500 focus:ring-1 focus:ring-pink-500`}
+                                                />
+                                                {passwordErrors.confirmPassword && (
+                                                    <p className="mt-1 text-sm text-red-500">{passwordErrors.confirmPassword}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-6 py-4 bg-gray-50/95 backdrop-blur-sm rounded-b-lg flex justify-end space-x-3">
+                            <button
+                                onClick={() => setIsProfileModalOpen(false)}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            {activeTab === 'profile' ? (
+                                <button
+                                    onClick={handleSaveChanges}
+                                    className="px-4 py-2 text-sm font-medium text-white bg-pink-600 hover:bg-pink-700 rounded-md transition-colors"
+                                >
+                                    Save Changes
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={handlePasswordChange}
+                                    className="px-4 py-2 text-sm font-medium text-white bg-pink-600 hover:bg-pink-700 rounded-md transition-colors"
+                                >
+                                    Change Password
+                                </button>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
 
