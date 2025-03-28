@@ -368,8 +368,26 @@ export default function AppointmentPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Return Section */}
+            <div className="text-white py-4 px-8">
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="30"
+                    height="30"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="var(--color-pink-600)"
+                    className="lucide lucide-undo2-icon lucide-undo-2 hover:scale-110 transition-transform duration-200 hover:stroke-pink-700 hover:cursor-pointer stroke-2"
+                    onClick={() => router.push("/dashboard/ourteams")}
+                >
+                    <path d="M9 14 4 9l5-5" />
+                    <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" />
+                </svg>
+            </div>
+
             {/* Doctor Details Section */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 text-gray-500">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-gray-500">
                 <h2 className="text-3xl font-semibold text-gray-800 mb-6">Doctor Information</h2>
                 <div className="bg-white p-6 rounded-lg shadow-lg">
                     <div className="flex items-center space-x-6 mb-6">
@@ -424,19 +442,18 @@ export default function AppointmentPage() {
                         <div key={appointment._id} className="bg-white p-6 rounded-lg shadow-lg mb-6">
                             <h3 className="text-xl font-semibold text-gray-900 mb-4">Date</h3>
                             <p>
+                                {new Date(selectedDate).toLocaleString("en-US", { weekday: "long" })} -{" "}
                                 {new Date(selectedDate).toLocaleDateString("en-GB", {
                                     day: "2-digit",
                                     month: "long",
                                     year: "numeric",
-                                })}{" "}
-                                {selectedDateDay}
+                                })}
                             </p>
                             <div className="mt-6">
                                 <h4 className="text-lg font-medium text-gray-800 mb-4">Weekly Schedule</h4>
                                 <table className="min-w-full table-auto">
                                     <thead>
                                         <tr>
-                                            {/* <th className="px-4 py-2 text-left text-gray-600">Day</th> */}
                                             <th className="px-4 py-2 text-center text-gray-600">Time Slots</th>
                                         </tr>
                                     </thead>
@@ -445,7 +462,6 @@ export default function AppointmentPage() {
                                             const schedule = appointment.weeklySchedule[day];
                                             return schedule.isAvailable && schedule.timeSlots.length > 0 ? (
                                                 <tr key={schedule._id}>
-                                                    {/* <td className="px-4 py-2">{day}</td> */}
                                                     <td className="px-4 py-2 ">
                                                         {schedule.timeSlots.map((slot: any) => (
                                                             <div
