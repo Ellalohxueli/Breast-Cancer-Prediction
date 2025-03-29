@@ -16,13 +16,48 @@ const poppins = Poppins({
     subsets: ['latin'],
 });
 
+interface Doctor {
+    _id: string;
+    name: string;
+    specialization: string;
+    image?: string;
+}
+
+interface BookedAppointment {
+    _id: string;
+    doctorId: string;
+    patientId: string;
+    dateRange: {
+        startDate: string;
+        endDate: string;
+    };
+    day: string;
+    timeSlot: {
+        startTime: string;
+        endTime: string;
+    };
+    status: 'Booked' | 'Pending' | 'Completed' | 'Cancelled';
+    appointmentType: 'Consultation' | 'Follow-up';
+    doctor?: Doctor;
+}
+
+// Helper function to format time to 12-hour format with AM/PM
+const formatTime = (time: string) => {
+    const [hours, minutes] = time.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${minutes}${ampm}`;
+};
+
 export default function AppointmentsPage() {
     const router = useRouter();
     const [messageCount, setMessageCount] = useState(3);
     const [notificationCount, setNotificationCount] = useState(5);
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-    const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile');
+    const [activeTab, setActiveTab] = useState<'booked' | 'past'>('booked');
+    const [activeProfileTab, setActiveProfileTab] = useState<'profile' | 'password'>('profile');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [user, setUser] = useState({ 
@@ -51,6 +86,9 @@ export default function AppointmentsPage() {
         newPassword: '',
         confirmPassword: ''
     });
+    const [bookedAppointments, setBookedAppointments] = useState<BookedAppointment[]>([]);
+    const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
+    const [appointmentError, setAppointmentError] = useState<string | null>(null);
 
     useCheckCookies();
 
@@ -278,6 +316,36 @@ export default function AppointmentsPage() {
         setEditedUser(user);
     }, [user]);
 
+    useEffect(() => {
+        const fetchAppointments = async () => {
+            setIsLoadingAppointments(true);
+            setAppointmentError(null);
+            try {
+                const response = await axios.get('/api/users/showAppointment');
+                
+                if (response.data.success) {
+                    const appointments = response.data.appointments;
+                    console.log('All appointments:', appointments); // Debug log
+                    
+                    // Filter appointments to show only "Booked" status
+                    const booked = appointments.filter((apt: BookedAppointment) => {
+                        return apt.status === 'Booked';
+                    });
+                    
+                    console.log('Filtered booked appointments:', booked); // Debug log
+                    setBookedAppointments(booked);
+                }
+            } catch (error: any) {
+                console.error('Error fetching appointments:', error);
+                setAppointmentError(error.response?.data?.error || 'Failed to load appointments');
+            } finally {
+                setIsLoadingAppointments(false);
+            }
+        };
+
+        fetchAppointments();
+    }, []);
+
     return (
         <div className={`min-h-screen bg-gray-50 ${poppins.className}`}>
             {/* Full width white navigation bar */}
@@ -404,7 +472,154 @@ export default function AppointmentsPage() {
             {/* Main Content Area */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <h1 className="text-3xl font-bold text-gray-900 mb-8">My Appointments</h1>
-                {/* Add your appointments content here */}
+                
+                {/* Navigation Tabs */}
+                <div className="border-b border-gray-200 mb-8">
+                    <nav className="-mb-px flex space-x-8">
+                        <button
+                            onClick={() => setActiveTab('booked')}
+                            className={`${
+                                activeTab === 'booked'
+                                    ? 'border-pink-500 text-pink-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg transition-colors duration-200`}
+                        >
+                            Booked Appointments
+                        </button>
+
+                        <button
+                            onClick={() => setActiveTab('past')}
+                            className={`${
+                                activeTab === 'past'
+                                    ? 'border-pink-500 text-pink-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg transition-colors duration-200`}
+                        >
+                            Past Appointments & Reports
+                        </button>
+                    </nav>
+                </div>
+
+                {/* Tab Content */}
+                <div className="bg-white rounded-lg shadow">
+                    {appointmentError ? (
+                        <div className="p-6 text-center text-red-600">
+                            <p>{appointmentError}</p>
+                            <button 
+                                onClick={() => window.location.reload()} 
+                                className="mt-4 text-pink-600 hover:text-pink-700"
+                            >
+                                Try again
+                            </button>
+                        </div>
+                    ) : isLoadingAppointments ? (
+                        <div className="p-6 text-center">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-600 mx-auto"></div>
+                            <p className="mt-2 text-gray-600">Loading appointments...</p>
+                        </div>
+                    ) : activeTab === 'booked' ? (
+                        <div className="p-6">
+                            {bookedAppointments.length > 0 ? (
+                                <div className="space-y-4">
+                                    {bookedAppointments.map((appointment) => (
+                                        <div 
+                                            key={appointment._id} 
+                                            className="border rounded-lg p-6 hover:shadow-lg transition-shadow bg-white"
+                                        >
+                                            <div className="flex justify-between">
+                                                {/* Left side: Calendar icon with doctor info */}
+                                                <div className="flex items-center space-x-4">
+                                                    {/* Calendar Icon */}
+                                                    <div className="flex-shrink-0 w-12 h-12 bg-pink-100 rounded-lg flex items-center justify-center">
+                                                        <svg 
+                                                            className="w-6 h-6 text-pink-600" 
+                                                            fill="none" 
+                                                            stroke="currentColor" 
+                                                            viewBox="0 0 24 24"
+                                                        >
+                                                            <path 
+                                                                strokeLinecap="round" 
+                                                                strokeLinejoin="round" 
+                                                                strokeWidth="2" 
+                                                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" 
+                                                            />
+                                                        </svg>
+                                                    </div>
+
+                                                    {/* Doctor Info and Appointment Type */}
+                                                    <div className="space-y-1">
+                                                        <div className="text-xl font-bold text-gray-900">
+                                                            <span>{appointment.appointmentType}</span>
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-gray-600">
+                                                                with {appointment.doctor?.name || 'Doctor Name Not Available'}
+                                                            </h3>
+                                                            <p className="text-gray-500">
+                                                                {appointment.doctor?.specialization || 'Specialization Not Available'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Right side: Date, time, and buttons */}
+                                                <div className="flex flex-col items-end space-y-4">
+                                                    {/* Date and Time */}
+                                                    <div className="flex items-center text-gray-700">
+                                                        <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                                                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                        </svg>
+                                                        <span>
+                                                            {new Date(appointment.dateRange.startDate).toLocaleDateString('en-US', {
+                                                                weekday: 'short',
+                                                                year: 'numeric',
+                                                                month: 'long',
+                                                                day: 'numeric'
+                                                            })} at {formatTime(appointment.timeSlot.startTime)}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Action Buttons */}
+                                                    <div className="flex space-x-4">
+                                                        <button 
+                                                            className="px-4 py-2.5 text-sm font-medium text-pink-600 border border-pink-600 rounded-md hover:bg-pink-50 transition-colors"
+                                                            onClick={() => {/* Add reschedule logic */}}
+                                                        >
+                                                            Reschedule
+                                                        </button>
+                                                        <button 
+                                                            className="px-4 py-2.5 text-sm font-medium text-red-600 border border-red-600 rounded-md hover:bg-red-50 transition-colors"
+                                                            onClick={() => {/* Add cancel logic */}}
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center text-gray-500 py-8">
+                                    <p className="text-lg">No upcoming appointments</p>
+                                    <Link 
+                                        href="/dashboard/ourteams"
+                                        className="mt-4 inline-block px-6 py-3 bg-pink-600 text-white rounded-md hover:bg-pink-700 transition-colors"
+                                    >
+                                        Book an Appointment
+                                    </Link>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="p-6">
+                            <div className="text-center text-gray-500 py-8">
+                                <p className="text-lg">No past appointments</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {isProfileModalOpen && (
@@ -432,9 +647,9 @@ export default function AppointmentsPage() {
                             {/* Tabs */}
                             <div className="flex space-x-4 mt-6">
                                 <button
-                                    onClick={() => setActiveTab('profile')}
+                                    onClick={() => setActiveProfileTab('profile')}
                                     className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                                        activeTab === 'profile'
+                                        activeProfileTab === 'profile'
                                             ? 'bg-gray-100 text-pink-600'
                                             : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
                                     }`}
@@ -442,9 +657,9 @@ export default function AppointmentsPage() {
                                     Profile
                                 </button>
                                 <button
-                                    onClick={() => setActiveTab('password')}
+                                    onClick={() => setActiveProfileTab('password')}
                                     className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                                        activeTab === 'password'
+                                        activeProfileTab === 'password'
                                             ? 'bg-gray-100 text-pink-600'
                                             : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
                                     }`}
@@ -456,7 +671,7 @@ export default function AppointmentsPage() {
 
                         {/* Modal Content */}
                         <div className="p-6">
-                            {activeTab === 'profile' ? (
+                            {activeProfileTab === 'profile' ? (
                                 <div className="space-y-6">
                                     {error && (
                                         <div className="bg-red-50 text-red-600 p-3 rounded-md mb-4">
@@ -604,7 +819,7 @@ export default function AppointmentsPage() {
                             >
                                 Cancel
                             </button>
-                            {activeTab === 'profile' ? (
+                            {activeProfileTab === 'profile' ? (
                                 <button
                                     onClick={handleSaveChanges}
                                     className="px-4 py-2 text-sm font-medium text-white bg-pink-600 hover:bg-pink-700 rounded-md transition-colors"

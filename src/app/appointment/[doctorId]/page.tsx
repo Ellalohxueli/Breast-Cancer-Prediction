@@ -55,6 +55,7 @@ interface BookedAppointment {
         startTime: string;
         endTime: string;
     };
+    appointmentType: 'Consultation' | 'Follow-up';
 }
 
 interface Doctor {
@@ -83,6 +84,7 @@ export default function AppointmentPage() {
     const [selectedDate, setSelectedDate] = useState<string>("");
     const [selectedDateDay, setSelectedDateDay] = useState<string>("");
     const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>([]);
+    const [selectedAppointmentType, setSelectedAppointmentType] = useState<'Consultation' | 'Follow-up'>('Consultation');
 
     useEffect(() => {
         async function fetchAppointmentData() {
@@ -128,6 +130,11 @@ export default function AppointmentPage() {
 
         const doctorId = doctor?._id;
 
+        if (!selectedAppointmentType) {
+            toast.error("Please select an appointment type.");
+            return;
+        }
+
         if (doctorId && selectedSlots[doctorId]) {
             const selectedSlotId = selectedSlots[doctorId];
 
@@ -161,6 +168,7 @@ export default function AppointmentPage() {
                             startTime: selectedTimeSlot.startTime,
                             endTime: selectedTimeSlot.endTime,
                         },
+                        appointmentType: selectedAppointmentType,
                     };
 
                     try {
@@ -301,8 +309,19 @@ export default function AppointmentPage() {
                                     </Link>
                                 </li>
                                 <li>
-                                    <Link href="#" className="text-gray-600 hover:text-pink-600 font-medium">
+                                    <Link 
+                                        href="/dashboard/resources" 
+                                        className="text-gray-600 hover:text-pink-600 font-medium"
+                                    >
                                         Patient Resources
+                                    </Link>
+                                </li>
+                                <li>
+                                    <Link 
+                                        href="/dashboard/appointments" 
+                                        className="text-gray-600 hover:text-pink-600 font-medium"
+                                    >
+                                        Appointments
                                     </Link>
                                 </li>
                                 <li>
@@ -497,6 +516,31 @@ export default function AppointmentPage() {
                                         })}
                                     </tbody>
                                 </table>
+                            </div>
+                            <div className="mt-6">
+                                <h4 className="text-lg font-medium text-gray-800 mb-4">Appointment Type</h4>
+                                <div className="flex gap-4">
+                                    <button
+                                        className={`px-4 py-2 rounded-md ${
+                                            selectedAppointmentType === 'Consultation'
+                                                ? 'bg-pink-600 text-white'
+                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        } transition-colors`}
+                                        onClick={() => setSelectedAppointmentType('Consultation')}
+                                    >
+                                        Consultation
+                                    </button>
+                                    <button
+                                        className={`px-4 py-2 rounded-md ${
+                                            selectedAppointmentType === 'Follow-up'
+                                                ? 'bg-pink-600 text-white'
+                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        } transition-colors`}
+                                        onClick={() => setSelectedAppointmentType('Follow-up')}
+                                    >
+                                        Follow-up
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     ))}

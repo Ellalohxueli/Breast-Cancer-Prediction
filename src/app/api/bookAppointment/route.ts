@@ -9,9 +9,9 @@ export async function POST(req: Request, res: NextApiResponse) {
 
         const data = await req.json();
 
-        const { doctorId, patientId, dateRange, day, timeSlot } = data;
+        const { doctorId, patientId, dateRange, day, timeSlot, appointmentType } = data;
 
-        if (!doctorId || !patientId || !dateRange || !day || !timeSlot) {
+        if (!doctorId || !patientId || !dateRange || !day || !timeSlot || !appointmentType) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
         }
 
@@ -24,6 +24,7 @@ export async function POST(req: Request, res: NextApiResponse) {
                 startTime: timeSlot.startTime,
                 endTime: timeSlot.endTime,
             },
+            appointmentType,
             status: "Booked",
         });
 

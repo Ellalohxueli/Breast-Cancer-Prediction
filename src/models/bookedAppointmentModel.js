@@ -39,6 +39,11 @@ const BookedAppointmentSchema = new mongoose.Schema(
             enum: ["Booked", "Pending", "Completed", "Cancelled"],
             default: "Pending",
         },
+        appointmentType: {
+            type: String,
+            enum: ["Consultation", "Follow-up"],
+            required: true
+        },
     },
     { timestamps: true }
 );

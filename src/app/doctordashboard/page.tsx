@@ -50,6 +50,9 @@ export default function DoctorDashboard() {
     const [profileSuccessMessage, setProfileSuccessMessage] = useState(false);
     const [error, setError] = useState('');
     const [currentStatus, setCurrentStatus] = useState('');
+    const [todayAppointments, setTodayAppointments] = useState<any[]>([]);
+    const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
+    const [appointmentError, setAppointmentError] = useState<string | null>(null);
 
     // Check Cookies Token
     useCheckCookies();
@@ -112,6 +115,27 @@ export default function DoctorDashboard() {
             fetchDoctorProfile();
         }
     }, [isProfileModalOpen]);
+
+    // Add this useEffect to fetch appointments
+    useEffect(() => {
+        const fetchTodayAppointments = async () => {
+            setIsLoadingAppointments(true);
+            setAppointmentError(null);
+            try {
+                const response = await axios.get('/api/doctors/appointment');
+                if (response.data.success) {
+                    setTodayAppointments(response.data.appointments);
+                }
+            } catch (error: any) {
+                console.error('Error fetching appointments:', error);
+                setAppointmentError(error.response?.data?.error || 'Failed to load appointments');
+            } finally {
+                setIsLoadingAppointments(false);
+            }
+        };
+
+        fetchTodayAppointments();
+    }, []);
 
     const toggleTheme = () => {
         setIsDarkMode(!isDarkMode);
@@ -372,6 +396,16 @@ export default function DoctorDashboard() {
             )}
         </div>
     );
+
+    // Add this function after your component's state declarations
+    const formatTime = (time: string) => {
+        // Convert 24-hour format to 12-hour format with AM/PM
+        const [hours, minutes] = time.split(':');
+        const hour = parseInt(hours, 10);
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const formattedHour = hour % 12 || 12; // Convert 0 to 12 for 12 AM
+        return `${formattedHour}:${minutes} ${ampm}`;
+    };
 
     return (
         <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'} ${poppins.className}`}>
@@ -702,7 +736,7 @@ export default function DoctorDashboard() {
                         {/* Main Dashboard Content */}
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                             {/* Today's Appointments Section - Left Column */}
-                            <div className={`lg:col-span-2 ${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-sm h-[calc(100vh)] overflow-hidden`}>
+                            <div className={`lg:col-span-2 ${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-sm h-full`}>
                                 <div className="h-full flex flex-col">
                                     <div className={`p-6 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                                         <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -712,162 +746,105 @@ export default function DoctorDashboard() {
 
                                     {/* Appointments List */}
                                     <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                                        {[
-                                            {
-                                                time: '09:00 AM',
-                                                patientName: 'Sarah Johnson',
-                                                patientImage: '/default-avatar.png',
-                                                type: 'Check-up',
-                                                status: 'completed'
-                                            },
-                                            {
-                                                time: '10:30 AM',
-                                                patientName: 'Emma Davis',
-                                                patientImage: '/default-avatar.png',
-                                                type: 'Consultation',
-                                                status: 'ongoing'
-                                            },
-                                            {
-                                                time: '02:00 PM',
-                                                patientName: 'Maria Garcia',
-                                                patientImage: '/default-avatar.png',
-                                                type: 'Follow-up',
-                                                status: 'upcoming'
-                                            },
-                                            {
-                                                time: '03:30 PM',
-                                                patientName: 'Lisa Wilson',
-                                                patientImage: '/default-avatar.png',
-                                                type: 'Screening',
-                                                status: 'cancelled'
-                                            },
-                                            {
-                                                time: '04:15 PM',
-                                                patientName: 'Rachel Chen',
-                                                patientImage: '/default-avatar.png',
-                                                type: 'Initial Consultation',
-                                                status: 'upcoming'
-                                            },
-                                            {
-                                                time: '05:00 PM',
-                                                patientName: 'Amanda Torres',
-                                                patientImage: '/default-avatar.png',
-                                                type: 'Follow-up',
-                                                status: 'upcoming'
-                                            }
-                                        ]
-                                        .sort((a, b) => {
-                                            // Convert time strings to comparable values (minutes since midnight)
-                                            const getMinutes = (timeStr: string) => {
-                                                const [time, period] = timeStr.split(' ');
-                                                const [hours, minutes] = time.split(':').map(Number);
-                                                const adjustedHours = period === 'PM' && hours !== 12 ? hours + 12 : hours;
-                                                return adjustedHours * 60 + minutes;
-                                            };
-
-                                            // Priority order: upcoming/ongoing first, then completed/cancelled
-                                            const priorityOrder = {
-                                                'upcoming': 1,
-                                                'ongoing': 0,
-                                                'completed': 2,
-                                                'cancelled': 3
-                                            };
-
-                                            // First sort by status priority
-                                            const statusDiff = priorityOrder[a.status as keyof typeof priorityOrder] - 
-                                                             priorityOrder[b.status as keyof typeof priorityOrder];
-                                            
-                                            // If status is different, sort by status priority
-                                            if (statusDiff !== 0) return statusDiff;
-                                            
-                                            // If status is the same, sort by time
-                                            return getMinutes(a.time) - getMinutes(b.time);
-                                        })
-                                        .map((appointment, index) => (
-                                            <div 
-                                                key={index}
-                                                className={`p-4 rounded-lg ${
-                                                    appointment.status === 'ongoing'
-                                                        ? isDarkMode 
-                                                            ? 'bg-blue-900/30 hover:bg-blue-900/40'
-                                                            : 'bg-blue-50 hover:bg-blue-100'
-                                                        : isDarkMode 
-                                                            ? 'bg-gray-700 hover:bg-gray-600'
-                                                            : 'bg-gray-50 hover:bg-gray-100'
-                                                } transition-colors`}
-                                            >
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center">
-                                                        <div className="w-10 h-10 rounded-full overflow-hidden bg-pink-100 flex-shrink-0 flex items-center justify-center">
-                                                            {appointment.patientImage !== '/default-avatar.png' ? (
-                                                                <Image
-                                                                    src={appointment.patientImage}
-                                                                    alt={appointment.patientName}
-                                                                    width={40}
-                                                                    height={40}
-                                                                    className="w-full h-full object-cover"
-                                                                />
-                                                            ) : (
-                                                                <span className={`text-sm font-medium ${
-                                                                    isDarkMode ? 'text-pink-800' : 'text-pink-800'
-                                                                }`}>
-                                                                    {appointment.patientName.charAt(0)}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <div className="ml-3">
-                                                            <p className={`text-sm font-medium ${
-                                                                isDarkMode ? 'text-white' : 'text-gray-900'
-                                                            }`}>
-                                                                {appointment.patientName}
-                                                            </p>
-                                                            <p className={`text-xs ${
-                                                                isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                                            }`}>
-                                                                {appointment.type}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    <div className="text-right">
-                                                        <p className={`text-sm font-medium mb-2 ${
-                                                            isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                                                        }`}>
-                                                            {appointment.time}
-                                                        </p>
-                                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                            appointment.status === 'completed' ? 'bg-green-100 text-green-800' :
-                                                            appointment.status === 'ongoing' ? 'bg-blue-100 text-blue-800' :
-                                                            appointment.status === 'upcoming' ? 'bg-yellow-100 text-yellow-800' :
-                                                            'bg-red-100 text-red-800'
-                                                        }`}>
-                                                            {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                {appointment.status === 'upcoming' && (
-                                                    <div className="flex justify-end mt-3 space-x-2">
-                                                        <button className={`p-2 rounded-lg ${
-                                                            isDarkMode 
-                                                                ? 'bg-gray-600 hover:bg-gray-500 text-gray-300' 
-                                                                : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                                                        } transition-colors`}>
-                                                            <FiCalendar className="w-4 h-4" />
-                                                        </button>
-                                                        <button className={`p-2 rounded-lg ${
-                                                            isDarkMode 
-                                                                ? 'bg-gray-600 hover:bg-gray-500 text-gray-300' 
-                                                                : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                                                        } transition-colors`}>
-                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                )}
+                                        {isLoadingAppointments ? (
+                                            <div className="flex justify-center items-center h-full">
+                                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-600"></div>
                                             </div>
-                                        ))}
+                                        ) : appointmentError ? (
+                                            <div className="text-center text-red-600">
+                                                <p>{appointmentError}</p>
+                                            </div>
+                                        ) : todayAppointments.length === 0 ? (
+                                            <div className="text-center text-gray-500">
+                                                <p>No appointments scheduled for today</p>
+                                            </div>
+                                        ) : (
+                                            todayAppointments.map((appointment) => (
+                                                <div 
+                                                    key={appointment._id}
+                                                    className={`p-4 rounded-lg ${
+                                                        appointment.status === 'Booked'
+                                                            ? isDarkMode 
+                                                                ? 'bg-blue-900/30 hover:bg-blue-900/40'
+                                                                : 'bg-blue-50 hover:bg-blue-100'
+                                                            : isDarkMode 
+                                                                ? 'bg-gray-700 hover:bg-gray-600'
+                                                                : 'bg-gray-50 hover:bg-gray-100'
+                                                    } transition-colors`}
+                                                >
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center">
+                                                            <div className="w-10 h-10 rounded-full overflow-hidden bg-pink-100 flex-shrink-0 flex items-center justify-center">
+                                                                {appointment.patient?.image ? (
+                                                                    <Image
+                                                                        src={appointment.patient.image}
+                                                                        alt={`${appointment.patient.firstname} ${appointment.patient.lastname}`}
+                                                                        width={40}
+                                                                        height={40}
+                                                                        className="w-full h-full object-cover"
+                                                                    />
+                                                                ) : (
+                                                                    <span className={`text-sm font-medium ${
+                                                                        isDarkMode ? 'text-pink-800' : 'text-pink-800'
+                                                                    }`}>
+                                                                        {appointment.patient?.firstname?.charAt(0)}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div className="ml-3">
+                                                                <p className={`text-sm font-medium ${
+                                                                    isDarkMode ? 'text-white' : 'text-gray-900'
+                                                                }`}>
+                                                                    {`${appointment.patient?.firstname} ${appointment.patient?.lastname}`}
+                                                                </p>
+                                                                <p className={`text-xs ${
+                                                                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                                                }`}>
+                                                                    {appointment.appointmentType}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div className="text-right">
+                                                            <p className={`text-sm font-medium mb-2 ${
+                                                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                                            }`}>
+                                                                {formatTime(appointment.timeSlot.startTime)}
+                                                            </p>
+                                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                                appointment.status === 'Completed' ? 'bg-green-100 text-green-800' :
+                                                                appointment.status === 'Booked' ? 'bg-blue-100 text-blue-800' :
+                                                                appointment.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                                                                'bg-red-100 text-red-800'
+                                                            }`}>
+                                                                {appointment.status}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    {appointment.status === 'Booked' && (
+                                                        <div className="flex justify-end mt-3 space-x-2">
+                                                            <button className={`p-2 rounded-lg ${
+                                                                isDarkMode 
+                                                                    ? 'bg-gray-600 hover:bg-gray-500 text-gray-300' 
+                                                                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                                                            } transition-colors`}>
+                                                                <FiCalendar className="w-4 h-4" />
+                                                            </button>
+                                                            <button className={`p-2 rounded-lg ${
+                                                                isDarkMode 
+                                                                    ? 'bg-gray-600 hover:bg-gray-500 text-gray-300' 
+                                                                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                                                            } transition-colors`}>
+                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))
+                                        )}
                                     </div>
                                 </div>
                             </div>
