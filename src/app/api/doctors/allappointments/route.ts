@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import BookedAppointment from "@/models/bookedAppointmentModel";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
-import mongoose from "mongoose";
 
 export async function GET(req: Request) {
     try {
@@ -23,33 +22,11 @@ export async function GET(req: Request) {
         const decodedToken: any = jwt.verify(token, process.env.TOKEN_SECRET!);
         const doctorId = decodedToken.id;
 
-        // Get today's date range (start of day to end of day)
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        // Find all appointments for this doctor
-        const allAppointments = await BookedAppointment.find({
-            doctorId: doctorId
-        }).sort({ 'dateRange.startDate': 1 });
-
-        if (!allAppointments) {
-            return NextResponse.json({
-                success: false,
-                message: "No appointments found"
-            });
-        }
-
-        // Fetch today's appointments
-        const appointments = await BookedAppointment.aggregate([
+        // Fetch all appointments with patient info
+        const allAppointments = await BookedAppointment.aggregate([
             {
                 $match: {
-                    doctorId: doctorId,
-                    "dateRange.startDate": {
-                        $gte: today,
-                        $lt: tomorrow
-                    }
+                    doctorId: doctorId
                 }
             },
             {
@@ -113,25 +90,30 @@ export async function GET(req: Request) {
             },
             {
                 $sort: {
+                    "dateRange.startDate": 1,
                     "timeSlot.startTime": 1
                 }
             }
         ]);
 
-        // Log the appointments for debugging
-        console.log('Fetched appointments:', JSON.stringify(appointments, null, 2));
+        if (!allAppointments.length) {
+            return NextResponse.json({
+                success: false,
+                message: "No appointments found"
+            });
+        }
 
         return NextResponse.json({ 
             success: true, 
-            appointments,
-            totalPatientsCount: allAppointments.length
-        }, { status: 200 });
+            appointments: allAppointments,
+            totalAppointments: allAppointments.length
+        });
 
     } catch (error) {
-        console.error("Error fetching appointments:", error);
+        console.error("Error fetching all appointments:", error);
         return NextResponse.json({ 
             success: false, 
             error: "Failed to fetch appointments" 
         }, { status: 500 });
     }
-}
+} 

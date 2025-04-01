@@ -1,5 +1,4 @@
 "use client";
-
 import { Poppins } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
@@ -30,6 +29,47 @@ const poppins = Poppins({
     weight: ["400", "500", "600", "700"],
     subsets: ["latin"],
 });
+
+// First, let's define the interfaces for our data structures
+interface Patient {
+    _id: string;
+    firstname: string;
+    lastname: string;
+    image?: string;
+    dob: string;
+}
+
+interface TimeSlot {
+    startTime: string;
+    endTime: string;
+}
+
+interface DateRange {
+    startDate: string;
+    endDate: string;
+}
+
+interface Appointment {
+    _id: string;
+    dateRange: DateRange;
+    timeSlot: TimeSlot;
+    status: string;
+    appointmentType: string;
+    patient: Patient;
+}
+
+// First, let's define interfaces for our accumulated results
+interface DateGroupedAppointments {
+    [date: string]: Appointment[];
+}
+
+interface StatusCount {
+    [status: string]: number;
+}
+
+interface MonthlyCount {
+    [month: string]: number;
+}
 
 export default function AppointmentsPage() {
     const router = useRouter();
@@ -79,6 +119,11 @@ export default function AppointmentsPage() {
     const [profileSuccessMessage, setProfileSuccessMessage] = useState(false);
     const [error, setError] = useState('');
     const [currentStatus, setCurrentStatus] = useState('');
+    const [allAppointments, setAllAppointments] = useState<Appointment[]>([]);
+    const [isLoadingAll, setIsLoadingAll] = useState(false);
+    const [fetchAllError, setFetchAllError] = useState('');
+    const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+    const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
 
     // Check Cookies Token
     useCheckCookies();
@@ -175,7 +220,7 @@ export default function AppointmentsPage() {
         const firstDay = new Date(year, month, 1);
         const lastDay = new Date(year, month + 1, 0);
         const daysInMonth = lastDay.getDate();
-        const startingDay = firstDay.getDay();
+        const startingDay = firstDay.getDay(); // 0 for Sunday, 1 for Monday, etc.
         return { daysInMonth, startingDay };
     };
 
@@ -273,18 +318,174 @@ export default function AppointmentsPage() {
         }
     };
 
+    // First, add a helper function to format appointments for display
+    const formatAppointmentTime = (timeSlot: TimeSlot) => {
+        const formatTimeToAMPM = (time: string) => {
+            const [hours, minutes] = time.split(':').map(Number);
+            const period = hours >= 12 ? 'PM' : 'AM';
+            const displayHours = hours % 12 || 12; // Convert 0 to 12 for 12 AM
+            return `${displayHours}:${minutes.toString().padStart(2, '0')}${period}`;
+        };
+
+        return `${formatTimeToAMPM(timeSlot.startTime)}`;
+    };
+
+    const getAppointmentColor = (status: string, isDarkMode: boolean) => {
+        switch (status.toLowerCase()) {
+            case 'completed':
+                return isDarkMode ? 'bg-green-500/20 text-green-300' : 'bg-green-100 text-green-800';
+            case 'cancelled':
+                return isDarkMode ? 'bg-red-500/20 text-red-300' : 'bg-red-100 text-red-800';
+            case 'pending':
+                return isDarkMode ? 'bg-yellow-500/20 text-yellow-300' : 'bg-yellow-100 text-yellow-800';
+            case 'rescheduled':
+                return isDarkMode ? 'bg-orange-500/20 text-orange-300' : 'bg-orange-100 text-orange-800';
+            default:
+                return isDarkMode ? 'bg-pink-500/20 text-pink-300' : 'bg-pink-100 text-pink-800';
+        }
+    };
+
+    // Add this helper function to calculate appointment position and height
+    const calculateAppointmentPosition = (timeSlot: TimeSlot) => {
+        const [startHour, startMinute] = timeSlot.startTime.split(':').map(Number);
+        const [endHour, endMinute] = timeSlot.endTime.split(':').map(Number);
+        
+        const startInMinutes = startHour * 60 + startMinute;
+        const endInMinutes = endHour * 60 + endMinute;
+        const duration = endInMinutes - startInMinutes;
+        
+        const topPosition = (startInMinutes / 60) * 80; // 80px is the height of each hour slot
+        const height = (duration / 60) * 80;
+        
+        return { top: topPosition, height };
+    };
+
+    // Update the month view rendering code
+    const renderMonthView = () => {
+        const { daysInMonth, startingDay } = getDaysInMonth(displayDate);
+        const previousMonth = new Date(displayDate.getFullYear(), displayDate.getMonth() - 1);
+        const daysInPreviousMonth = new Date(displayDate.getFullYear(), displayDate.getMonth(), 0).getDate();
+        
+        // Calculate total days needed (35 days for 5 rows)
+        const totalDays = 35; // 5 rows * 7 days
+        
+        return (
+            <div className="grid grid-cols-7 gap-2">
+                {Array.from({ length: totalDays }, (_, i) => {
+                    let date: Date;
+                    let isCurrentMonth: boolean;
+
+                    if (i < startingDay) {
+                        // Previous month dates
+                        const day = daysInPreviousMonth - (startingDay - i - 1);
+                        date = new Date(previousMonth.getFullYear(), previousMonth.getMonth(), day);
+                        isCurrentMonth = false;
+                    } else if (i >= startingDay && i < startingDay + daysInMonth) {
+                        // Current month dates
+                        const day = i - startingDay + 1;
+                        date = new Date(displayDate.getFullYear(), displayDate.getMonth(), day);
+                        isCurrentMonth = true;
+                    } else {
+                        // Empty cells for dates that should appear in next month
+                        return <div key={i} className="min-h-[120px] p-2"></div>;
+                    }
+
+                    // Filter appointments for this date
+                    const dayAppointments = allAppointments.filter(apt => {
+                        const aptDate = new Date(apt.dateRange.startDate);
+                        return aptDate.getDate() === date.getDate() &&
+                               aptDate.getMonth() === date.getMonth() &&
+                               aptDate.getFullYear() === date.getFullYear();
+                    });
+
+                    // Sort appointments by start time
+                    dayAppointments.sort((a, b) => {
+                        const aTime = a.timeSlot.startTime;
+                        const bTime = b.timeSlot.startTime;
+                        return aTime.localeCompare(bTime);
+                    });
+
+                    const isToday = date.toDateString() === new Date().toDateString();
+
+                    // Check if this date should be shown in the current view
+                    const shouldShow = isCurrentMonth || (i < startingDay);
+
+                    if (!shouldShow) {
+                        return <div key={i} className="min-h-[120px] p-2"></div>;
+                    }
+
+                    return (
+                        <div
+                            key={i}
+                            className={`min-h-[120px] p-2 rounded-lg ${
+                                isCurrentMonth
+                                    ? isDarkMode 
+                                        ? 'bg-gray-800' 
+                                        : 'bg-white'
+                                    : isDarkMode 
+                                        ? 'bg-gray-800/50' 
+                                        : 'bg-gray-50'
+                            }`}
+                        >
+                            <div className={`flex items-center mb-1`}>
+                                <span className={`text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full
+                                    ${isToday
+                                        ? isDarkMode 
+                                            ? 'bg-pink-500 text-white' 
+                                            : 'bg-pink-600 text-white'
+                                        : isCurrentMonth
+                                            ? isDarkMode 
+                                                ? 'text-gray-200' 
+                                                : 'text-gray-900'
+                                        : isDarkMode 
+                                            ? 'text-gray-600' 
+                                            : 'text-gray-400'
+                                    }`}
+                                >
+                                    {date.getDate()}
+                                </span>
+                            </div>
+                            
+                            <div className="space-y-1 overflow-y-auto max-h-[80px]">
+                                {dayAppointments.map((apt) => (
+                                    <div
+                                        key={apt._id}
+                                        onClick={() => handleAppointmentClick(apt)}
+                                        className={`text-xs px-1.5 py-0.5 rounded truncate ${getAppointmentColor(apt.status, isDarkMode)} cursor-pointer hover:opacity-90`}
+                                        title={`${apt.patient.firstname} ${apt.patient.lastname} - ${formatAppointmentTime(apt.timeSlot)}`}
+                                    >
+                                        <span className="font-medium">{formatAppointmentTime(apt.timeSlot)}</span>
+                                        {" - "}
+                                        <span className="truncate">{apt.patient.firstname}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
+    // Add this helper function to calculate the current time position
+    const getCurrentTimePosition = () => {
+        const now = new Date();
+        const hours = now.getHours();
+        const minutes = now.getMinutes();
+        return (hours + minutes / 60) * 80; // 80px is the height of each hour slot
+    };
+
+    // Update the renderWeekView function to include the current time indicator
     const renderWeekView = () => {
         const weekDates = getWeekDates(displayDate);
         const hours = Array.from({ length: 24 }, (_, i) => i);
         const today = new Date();
-
-        // Function to check if a date is today
-        const isDateToday = (date: Date) => {
-            return date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
-        };
-
-        // Find today's column index
-        const todayIndex = weekDates.findIndex(isDateToday);
+        const currentTimeTop = getCurrentTimePosition();
+        const isCurrentWeek = weekDates.some(date => 
+            date.getDate() === today.getDate() &&
+            date.getMonth() === today.getMonth() &&
+            date.getFullYear() === today.getFullYear()
+        );
 
         return (
             <div className="relative h-[calc(100vh-16rem)]">
@@ -324,18 +525,16 @@ export default function AppointmentsPage() {
 
                         {/* Time slots grid */}
                         <div className="grid grid-cols-7 divide-x divide-gray-200 relative">
-                            {/* Current time indicator - Only show if today is in view */}
-                            {todayIndex !== -1 && (
-                                <div
-                                    className={`absolute z-20 ${isDarkMode ? "bg-pink-500" : "bg-pink-600"}`}
-                                    style={{
-                                        top: `${currentTimeTop}px`,
-                                        height: "2px",
-                                        left: `${(todayIndex * 100) / 7}%`,
-                                        width: `${100 / 7}%`,
-                                    }}
+                            {/* Add current time indicator */}
+                            {isCurrentWeek && (
+                                <div 
+                                    className="absolute left-0 right-0 z-20 pointer-events-none"
+                                    style={{ top: `${currentTimeTop}px` }}
                                 >
-                                    <div className={`absolute -left-2 -top-1 w-4 h-4 rounded-full ${isDarkMode ? "bg-pink-500" : "bg-pink-600"}`} />
+                                    <div className={`h-[2px] w-full ${isDarkMode ? 'bg-pink-500' : 'bg-pink-600'}`}></div>
+                                    <div 
+                                        className={`w-3 h-3 rounded-full ${isDarkMode ? 'bg-pink-500' : 'bg-pink-600'} absolute -left-1.5 -top-1.5`}
+                                    ></div>
                                 </div>
                             )}
 
@@ -343,17 +542,33 @@ export default function AppointmentsPage() {
                                 <div key={dayIndex} className="relative">
                                     {hours.map((hour) => (
                                         <div key={hour} className={`h-20 border-b ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
-                                            {/* Example appointment */}
-                                            {hour === 10 && dayIndex === 3 && (
-                                                <div
-                                                    className={`absolute inset-x-1 top-[200px] h-20 rounded-lg px-2 py-1 ${
-                                                        isDarkMode ? "bg-pink-500/20 text-pink-300" : "bg-pink-100 text-pink-800"
-                                                    }`}
-                                                >
-                                                    <div className="text-xs font-medium">Consultation</div>
-                                                    <div className="text-xs">Sarah Johnson</div>
-                                                </div>
-                                            )}
+                                            {allAppointments
+                                                .filter(apt => {
+                                                    const aptDate = new Date(apt.dateRange.startDate);
+                                                    return aptDate.getDate() === date.getDate() &&
+                                                           aptDate.getMonth() === date.getMonth() &&
+                                                           aptDate.getFullYear() === date.getFullYear();
+                                                })
+                                                .map(apt => {
+                                                    const { top, height } = calculateAppointmentPosition(apt.timeSlot);
+                                                    return (
+                                                        <div
+                                                            key={apt._id}
+                                                            onClick={() => handleAppointmentClick(apt)}
+                                                            className={`absolute inset-x-1 px-2 py-1 rounded-lg ${getAppointmentColor(apt.status, isDarkMode)} cursor-pointer hover:opacity-90`}
+                                                            style={{
+                                                                top: `${top}px`,
+                                                                height: `${height}px`,
+                                                                zIndex: 10
+                                                            }}
+                                                        >
+                                                            <div className="text-xs font-medium truncate">{apt.appointmentType}</div>
+                                                            <div className="text-xs truncate">{`${apt.patient.firstname} ${apt.patient.lastname}`}</div>
+                                                            <div className="text-xs truncate">{formatAppointmentTime(apt.timeSlot)}</div>
+                                                        </div>
+                                                    );
+                                                })
+                                            }
                                         </div>
                                     ))}
                                 </div>
@@ -365,10 +580,16 @@ export default function AppointmentsPage() {
         );
     };
 
+    // Update the renderDayView function to include the current time indicator
     const renderDayView = () => {
         const hours = Array.from({ length: 24 }, (_, i) => i);
         const today = new Date();
-        const isDisplayDateToday = displayDate.getDate() === today.getDate() && displayDate.getMonth() === today.getMonth() && displayDate.getFullYear() === today.getFullYear();
+        const currentTimeTop = getCurrentTimePosition();
+        
+        // Add this variable declaration
+        const isDisplayDateToday = displayDate.getDate() === today.getDate() &&
+                                  displayDate.getMonth() === today.getMonth() &&
+                                  displayDate.getFullYear() === today.getFullYear();
 
         return (
             <div className="relative h-[calc(100vh-16rem)]">
@@ -410,33 +631,50 @@ export default function AppointmentsPage() {
                             ))}
                         </div>
 
-                        {/* Time slots grid */}
+                        {/* Time slots */}
                         <div className="relative">
-                            {/* Current time indicator - Only show if today */}
+                            {/* Add current time indicator */}
                             {isDisplayDateToday && (
-                                <div
-                                    className={`absolute z-20 left-0 right-0 ${isDarkMode ? "bg-pink-500" : "bg-pink-600"}`}
-                                    style={{
-                                        top: `${currentTimeTop}px`,
-                                        height: "2px",
-                                    }}
+                                <div 
+                                    className="absolute left-0 right-0 z-20 pointer-events-none"
+                                    style={{ top: `${currentTimeTop}px` }}
                                 >
-                                    <div className={`absolute -left-2 -top-1 w-4 h-4 rounded-full ${isDarkMode ? "bg-pink-500" : "bg-pink-600"}`} />
+                                    <div className={`h-[2px] w-full ${isDarkMode ? 'bg-pink-500' : 'bg-pink-600'}`}></div>
+                                    <div 
+                                        className={`w-3 h-3 rounded-full ${isDarkMode ? 'bg-pink-500' : 'bg-pink-600'} absolute -left-1.5 -top-1.5`}
+                                    ></div>
                                 </div>
                             )}
 
-                            {/* Hour slots */}
                             {hours.map((hour) => (
                                 <div key={hour} className={`h-20 border-b ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
-                                    {/* Example appointment */}
-                                    {hour === 10 && (
-                                        <div
-                                            className={`absolute inset-x-1 h-20 rounded-lg px-2 py-1 ${isDarkMode ? "bg-pink-500/20 text-pink-300" : "bg-pink-100 text-pink-800"}`}
-                                        >
-                                            <div className="text-xs font-medium">Consultation</div>
-                                            <div className="text-xs">Sarah Johnson</div>
-                                        </div>
-                                    )}
+                                    {allAppointments
+                                        .filter(apt => {
+                                            const aptDate = new Date(apt.dateRange.startDate);
+                                            return aptDate.getDate() === displayDate.getDate() &&
+                                                   aptDate.getMonth() === displayDate.getMonth() &&
+                                                   aptDate.getFullYear() === displayDate.getFullYear();
+                                        })
+                                        .map(apt => {
+                                            const { top, height } = calculateAppointmentPosition(apt.timeSlot);
+                                            return (
+                                                <div
+                                                    key={apt._id}
+                                                    onClick={() => handleAppointmentClick(apt)}
+                                                    className={`absolute inset-x-1 px-2 py-1 rounded-lg ${getAppointmentColor(apt.status, isDarkMode)} cursor-pointer hover:opacity-90`}
+                                                    style={{
+                                                        top: `${top}px`,
+                                                        height: `${height}px`,
+                                                        zIndex: 10
+                                                    }}
+                                                >
+                                                    <div className="text-xs font-medium truncate">{apt.appointmentType}</div>
+                                                    <div className="text-xs truncate">{`${apt.patient.firstname} ${apt.patient.lastname}`}</div>
+                                                    <div className="text-xs truncate">{formatAppointmentTime(apt.timeSlot)}</div>
+                                                </div>
+                                            );
+                                        })
+                                    }
                                 </div>
                             ))}
                         </div>
@@ -871,6 +1109,64 @@ export default function AppointmentsPage() {
         </div>
     );
 
+    // Add this function to fetch all appointments
+    const fetchAllAppointments = async () => {
+        try {
+            setIsLoadingAll(true);
+            const response = await axios.get('/api/doctors/allappointments');
+
+            if (response.data.success) {
+                const appointments = response.data.appointments;
+                setAllAppointments(appointments);
+            } else {
+                setFetchAllError('Failed to fetch appointments');
+            }
+        } catch (error) {
+            console.error('Error fetching all appointments:', error);
+            setFetchAllError('Error fetching appointments');
+        } finally {
+            setIsLoadingAll(false);
+        }
+    };
+
+    // Add this to your useEffect or where appropriate
+    useEffect(() => {
+        fetchAllAppointments();
+    }, []); // Empty dependency array means this runs once on component mount
+
+    // Add this useEffect to update the current time line
+    useEffect(() => {
+        if ((viewType === 'week' || viewType === 'day') && 
+            (viewType === 'day' ? isToday(displayDate.getDate()) : true)) {
+            const interval = setInterval(() => {
+                // Force re-render to update time line position
+                setDisplayDate(prev => new Date(prev));
+            }, 60000); // Update every minute
+
+            return () => clearInterval(interval);
+        }
+    }, [viewType, displayDate]);
+
+    // Add this handler function
+    const handleAppointmentClick = (apt: Appointment) => {
+        setSelectedAppointment(apt);
+        setIsAppointmentModalOpen(true);
+    };
+
+    // Add this helper function to calculate age
+    const calculateAge = (dob: string) => {
+        const birthDate = new Date(dob);
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+        
+        return age;
+    };
+
     return (
         <div className={`min-h-screen ${isDarkMode ? "bg-gray-900" : "bg-gray-100"} ${poppins.className}`}>
             {/* Sidebar - Fixed */}
@@ -1141,59 +1437,10 @@ export default function AppointmentsPage() {
                             {/* Calendar Content */}
                             <div className="p-6">
                                 {viewType === "month" ? (
-                                    // Existing month view code
-                                    <div className="grid grid-cols-7 gap-2">
-                                        {Array.from({ length: 35 }, (_, i) => {
-                                            const { daysInMonth, startingDay } = getDaysInMonth(displayDate);
-                                            const day = i - startingDay;
-                                            const isCurrentMonth = day >= 0 && day < daysInMonth;
-
-                                            // Calculate the date number to display
-                                            const dateNumber = isCurrentMonth
-                                                ? day + 1
-                                                : day < 0
-                                                ? new Date(displayDate.getFullYear(), displayDate.getMonth(), 0).getDate() + day + 1
-                                                : day - daysInMonth + 1;
-
-                                            return (
-                                                <div
-                                                    key={i}
-                                                    className={`aspect-square p-2 rounded-lg cursor-pointer ${
-                                                        isToday(day + 1) && isCurrentMonth
-                                                            ? isDarkMode
-                                                                ? "ring-2 ring-pink-500"
-                                                                : "ring-2 ring-pink-600"
-                                                            : isDarkMode
-                                                            ? "hover:bg-gray-700"
-                                                            : "hover:bg-gray-50"
-                                                    } ${!isCurrentMonth ? (isDarkMode ? "text-gray-600" : "text-gray-400") : isDarkMode ? "text-gray-200" : "text-gray-700"}`}
-                                                >
-                                                    <div
-                                                        className={`font-medium text-sm mb-1 w-7 h-7 flex items-center justify-center rounded-full ${
-                                                            isToday(day + 1) && isCurrentMonth ? (isDarkMode ? "bg-pink-500 text-white" : "bg-pink-600 text-white") : ""
-                                                        }`}
-                                                    >
-                                                        {dateNumber}
-                                                    </div>
-                                                    {/* Example Appointments */}
-                                                    {isCurrentMonth && [15, 18, 22].includes(day + 1) && (
-                                                        <div
-                                                            className={`text-xs px-1.5 py-0.5 rounded ${
-                                                                isDarkMode ? "bg-pink-500/20 text-pink-300" : "bg-pink-100 text-pink-800"
-                                                            } mb-1`}
-                                                        >
-                                                            2 appointments
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
+                                    renderMonthView()
                                 ) : viewType === "week" ? (
-                                    // Week view
                                     renderWeekView()
                                 ) : (
-                                    // Day view
                                     renderDayView()
                                 )}
                             </div>
@@ -1989,6 +2236,112 @@ export default function AppointmentsPage() {
                     Profile updated successfully!
                 </div>
             )}
+
+            {isAppointmentModalOpen && selectedAppointment && (
+                <div className="fixed inset-0 z-50">
+                    {/* Backdrop */}
+                    <div 
+                        className="absolute inset-0 bg-black/30 backdrop-blur-sm" 
+                        onClick={() => setIsAppointmentModalOpen(false)}
+                    />
+
+                    {/* Modal */}
+                    <div className="absolute inset-0 flex items-center justify-center p-4">
+                        <div className={`w-full max-w-lg rounded-xl shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'} overflow-hidden`}>
+                            {/* Modal Header */}
+                            <div className={`px-6 py-4 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} flex justify-between items-center`}>
+                                <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    {selectedAppointment.appointmentType}
+                                </h3>
+                                <button 
+                                    onClick={() => setIsAppointmentModalOpen(false)}
+                                    className={`p-2 rounded-lg transition-colors ${
+                                        isDarkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
+                                    }`}
+                                >
+                                    <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            {/* Modal Content */}
+                            <div className="p-6">
+                                <div className="space-y-4">
+                                    {/* Status Badge */}
+                                    <div className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${getAppointmentColor(selectedAppointment.status, isDarkMode)}`}>
+                                        {selectedAppointment.status}
+                                    </div>
+
+                                    {/* Date & Time - with gray clock icon */}
+                                    <div className="flex items-center gap-2">
+                                        <FiClock className={`w-4 h-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                                        <div>
+                                            <p className={`${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                                {new Date(selectedAppointment.dateRange.startDate).toLocaleDateString('en-US', {
+                                                    weekday: 'long',
+                                                    day: 'numeric',
+                                                    month: 'long'
+                                                })}
+                                            </p>
+                                            <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                                {formatAppointmentTime(selectedAppointment.timeSlot)}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Patient Info */}
+                                    <div>
+                                        <h4 className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            Patient Information
+                                        </h4>
+                                        <div className="mt-1 flex items-center space-x-3">
+                                            <div className="w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center">
+                                                {selectedAppointment.patient.image ? (
+                                                    <Image 
+                                                        src={selectedAppointment.patient.image}
+                                                        alt="Patient"
+                                                        width={40}
+                                                        height={40}
+                                                        className="w-full h-full rounded-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <span className="text-pink-800 font-medium">
+                                                        {selectedAppointment.patient.firstname[0]}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <p className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                                    {`${selectedAppointment.patient.firstname} ${selectedAppointment.patient.lastname}`}
+                                                </p>
+                                                <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                    Age: {calculateAge(selectedAppointment.patient.dob)} years old
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Modal Footer */}
+                            <div className={`px-6 py-4 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} flex justify-end`}>
+                                <button
+                                    onClick={() => setIsAppointmentModalOpen(false)}
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                                        isDarkMode
+                                            ? 'bg-gray-700 hover:bg-gray-600 text-white'
+                                            : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                                    }`}
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
+

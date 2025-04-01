@@ -24,6 +24,7 @@ import useCheckCookies from '@/controller/UseCheckCookie';
 import axios from 'axios';
 import { FaXRay, FaCalendar, FaVial, FaNotesMedical, FaFirstAid, FaPrescription, FaHeartbeat, FaUserMd, FaHospital, FaHandHolding, FaComments, FaShieldAlt, FaChartLine, FaClinicMedical, FaHospitalUser } from 'react-icons/fa';
 import { FiSearch } from 'react-icons/fi';
+import { FaClock } from 'react-icons/fa';
 
 const poppins = Poppins({
     weight: ['400', '500', '600', '700'],
@@ -64,10 +65,23 @@ type Review = {
     created_at: string;
 };
 
+type NotificationData = {
+    _id: string;
+    doctorId: string;
+    patientId: string;
+    appointmentDate: string;
+    appointmentDay: string;
+    appointmentTime: string;
+    status: 'cancelled' | 'rescheduled';
+    isRead: boolean;
+    createdAt: string;
+    updatedAt: string;
+};
+
 export default function DashboardPage() {
     const router = useRouter();
     const [messageCount, setMessageCount] = useState(3);
-    const [notificationCount, setNotificationCount] = useState(5);
+    const [notificationCount, setNotificationCount] = useState(0);
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [teamDoctors, setTeamDoctors] = useState<Doctor[]>([]);
     const [services, setServices] = useState<Service[]>([]);
@@ -107,6 +121,12 @@ export default function DashboardPage() {
         newPassword: '',
         confirmPassword: ''
     });
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [notifications, setNotifications] = useState<NotificationData[]>([]);
+    const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+    const [notificationError, setNotificationError] = useState<string | null>(null);
+    const [selectedNotification, setSelectedNotification] = useState<NotificationData | null>(null);
+    const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
 
     useCheckCookies();
 
@@ -193,6 +213,57 @@ export default function DashboardPage() {
 
         fetchReviews();
     }, []);
+
+    useEffect(() => {
+        const fetchInitialNotifications = async () => {
+            try {
+                const response = await axios.get('/api/notifications');
+                console.log('Initial notifications fetch:', response.data);
+                if (response.data.success) {
+                    setNotifications(response.data.notifications);
+                    // Count unread notifications
+                    const unreadCount = response.data.notifications.filter(
+                        (n: NotificationData) => !n.isRead
+                    ).length;
+                    setNotificationCount(unreadCount);
+                    console.log('Initial unread notifications count:', unreadCount);
+                }
+            } catch (error) {
+                console.error('Error fetching initial notifications:', error);
+            }
+        };
+
+        fetchInitialNotifications();
+    }, []);
+
+    useEffect(() => {
+        const fetchNotifications = async () => {
+            if (isDropdownOpen) {
+                setIsLoadingNotifications(true);
+                setNotificationError(null);
+                try {
+                    const response = await axios.get('/api/notifications');
+                    console.log('Dropdown notifications fetch:', response.data);
+                    if (response.data.success) {
+                        setNotifications(response.data.notifications);
+                        // Update notification count
+                        const unreadCount = response.data.notifications.filter(
+                            (n: NotificationData) => !n.isRead
+                        ).length;
+                        setNotificationCount(unreadCount);
+                        console.log('Updated unread notifications count:', unreadCount);
+                    }
+                } catch (error) {
+                    console.error('Error fetching notifications:', error);
+                    setNotificationError('Failed to load notifications');
+                } finally {
+                    setIsLoadingNotifications(false);
+                }
+            }
+        };
+
+        fetchNotifications();
+    }, [isDropdownOpen]);
 
     const renderIcon = (iconName: string) => {
         const iconProps = { className: "h-8 w-8" };
@@ -501,6 +572,111 @@ export default function DashboardPage() {
         setIsProfileModalOpen(false);
     };
 
+    // Update the formatDate function
+    const formatDate = (dateString: string) => {
+        // Create dates with Malaysia timezone offset
+        const malaysiaOffset = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+        const now = new Date();
+        const malaysiaTime = new Date(now.getTime() + malaysiaOffset);
+        const createdAt = new Date(dateString);
+        
+        // Add detailed console logs
+        console.log('Timezone Information:', {
+            createdAtOriginal: dateString,
+            createdAtParsed: createdAt.toISOString(),
+            currentTimeUTC: now.toISOString(),
+            malaysiaTime: malaysiaTime.toISOString(),
+        });
+        
+        // Get time differences in milliseconds
+        const diffInMs = malaysiaTime.getTime() - createdAt.getTime();
+        
+        // Convert to minutes, hours, and days
+        const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+        const diffInHours = Math.floor(diffInMinutes / 60);
+        const diffInDays = Math.floor(diffInHours / 24);
+        
+        console.log('Time differences:', {
+            milliseconds: diffInMs,
+            minutes: diffInMinutes,
+            hours: diffInHours,
+            days: diffInDays
+        });
+
+        // More precise time difference handling
+        if (diffInMinutes < 1) {
+            return 'just now';
+        } else if (diffInMinutes < 60) {
+            return `${diffInMinutes} ${diffInMinutes === 1 ? 'minute' : 'minutes'} ago`;
+        } else if (diffInHours < 24) {
+            const remainingMinutes = diffInMinutes % 60;
+            if (remainingMinutes === 0) {
+                return `${diffInHours} ${diffInHours === 1 ? 'hour' : 'hours'} ago`;
+            } else {
+                return `${diffInHours}h ${remainingMinutes}m ago`;
+            }
+        } else if (diffInDays < 7) {
+            return `${diffInDays} ${diffInDays === 1 ? 'day' : 'days'} ago`;
+        } else {
+            return createdAt.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+    };
+
+    const handleNotificationClick = async (notification: NotificationData) => {
+        try {
+            // Only update if notification is unread
+            if (!notification.isRead) {
+                console.log('Updating notification read status for:', notification._id);
+                
+                const response = await axios.put('/api/notifications/read', {
+                    notificationId: notification._id
+                });
+
+                if (response.data.success) {
+                    // Update the notification in the local state
+                    setNotifications(prevNotifications => 
+                        prevNotifications.map(n => 
+                            n._id === notification._id 
+                                ? { ...n, isRead: true }
+                                : n
+                        )
+                    );
+
+                    // Update the notification count
+                    setNotificationCount(prev => Math.max(0, prev - 1));
+                }
+            }
+
+            // Set the selected notification and open modal
+            setSelectedNotification(notification);
+            setIsNotificationModalOpen(true);
+        } catch (error) {
+            console.error('Error updating notification read status:', error);
+        }
+    };
+
+    const handleCloseModal = () => {
+        setSelectedNotification(null);
+        setIsNotificationModalOpen(false);
+    };
+
+    // Add this helper function near your other utility functions
+    const formatTime = (time: string) => {
+        // Check if time is in 24-hour format (e.g., "14:30")
+        if (time.includes(':')) {
+            const [hours, minutes] = time.split(':');
+            const hour = parseInt(hours);
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const formattedHour = hour % 12 || 12; // Convert 0 to 12
+            return `${formattedHour}:${minutes}${ampm}`;
+        }
+        return time; // Return original if not in expected format
+    };
+
     return (
         <div id="top" className={`min-h-screen bg-gray-50 ${poppins.className}`}>
             {/* Full width white navigation bar */}
@@ -560,7 +736,7 @@ export default function DashboardPage() {
                                     </Link>
                                 </li>
                                 <li>
-                                    <a href="#" className="text-gray-600 hover:text-pink-600 relative">
+                                    <a href="#" className="text-gray-600 hover:text-pink-600 relative p-2">
                                         <div className="relative">
                                             <BiMessageRounded className="h-6 w-6" />
                                             {messageCount > 0 && (
@@ -572,14 +748,75 @@ export default function DashboardPage() {
                                     </a>
                                 </li>
                                 <li>
-                                    <a href="#" className="text-gray-600 hover:text-pink-600 relative">
-                                        <FaRegBell className="h-6 w-6" aria-label="Notifications" />
-                                        {notificationCount > 0 && (
-                                            <span className="absolute -top-2 -right-2 bg-pink-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                                                {notificationCount}
-                                            </span>
+                                    <div className="relative">
+                                        <button 
+                                            onClick={() => setIsDropdownOpen(!isDropdownOpen)} 
+                                            className="text-gray-600 hover:text-pink-600 relative p-2 rounded-full hover:bg-gray-100"
+                                        >
+                                            <FaRegBell className="h-6 w-6" aria-label="Notifications" />
+                                            {notificationCount > 0 && (
+                                                <span className="absolute top-0 right-0 bg-pink-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center text-[10px]">
+                                                    {notificationCount}
+                                                </span>
+                                            )}
+                                        </button>
+
+                                        {isDropdownOpen && (
+                                            <div className="absolute right-0 mt-2 w-96 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+                                                <div className="px-4 py-2 border-b border-gray-200">
+                                                    <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
+                                                </div>
+                                                
+                                                <div className="max-h-96 overflow-y-auto">
+                                                    {isLoadingNotifications ? (
+                                                        <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                                                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-pink-600 mx-auto"></div>
+                                                            <p className="mt-2">Loading notifications...</p>
+                                                        </div>
+                                                    ) : notificationError ? (
+                                                        <div className="px-4 py-3 text-sm text-red-500">
+                                                            {notificationError}
+                                                        </div>
+                                                    ) : notifications.length > 0 ? (
+                                                        notifications.map((notification) => (
+                                                            <div 
+                                                                key={notification._id} 
+                                                                className={`px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-0 ${
+                                                                    !notification.isRead ? 'bg-pink-50' : ''
+                                                                } cursor-pointer`}
+                                                                onClick={() => handleNotificationClick(notification)}
+                                                            >
+                                                                <div className="flex items-start">
+                                                                    <div className="flex-1">
+                                                                        <p className="text-sm font-medium text-gray-900">
+                                                                            Appointment {notification.status}
+                                                                        </p>
+                                                                        <p className="text-xs text-gray-600 mt-1">
+                                                                            {notification.appointmentDay}, {new Date(notification.appointmentDate).toLocaleDateString('en-US', {
+                                                                                year: 'numeric',
+                                                                                month: 'long',
+                                                                                day: 'numeric'
+                                                                            })} at {formatTime(notification.appointmentTime)}
+                                                                        </p>
+                                                                        <p className="text-xs text-gray-500 mt-2">
+                                                                            {formatDate(notification.createdAt)}
+                                                                        </p>
+                                                                    </div>
+                                                                    {!notification.isRead && (
+                                                                        <span className="h-2 w-2 bg-pink-500 rounded-full mt-1"></span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                                                            No notifications
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
                                         )}
-                                    </a>
+                                    </div>
                                 </li>
                                 <li className="relative">
                                     <button 
@@ -1151,6 +1388,90 @@ export default function DashboardPage() {
                                     Change Password
                                 </button>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Notification Detail Modal */}
+            {isNotificationModalOpen && selectedNotification && (
+                <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+                        {/* Modal Header */}
+                        <div className="px-6 py-4 border-b border-gray-200">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-lg font-semibold text-gray-900">
+                                    Appointment {selectedNotification.status.charAt(0).toUpperCase() + selectedNotification.status.slice(1)}
+                                </h3>
+                                <button 
+                                    onClick={handleCloseModal}
+                                    className="text-gray-400 hover:text-gray-500 transition-colors"
+                                >
+                                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Modal Content */}
+                        <div className="px-6 py-4">
+                            <div className="space-y-4">
+                                <div>
+                                    <div className="flex items-center space-x-2 mb-4">
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                            selectedNotification.status === 'cancelled' 
+                                                ? 'bg-red-100 text-red-800' 
+                                                : 'bg-yellow-100 text-yellow-800'
+                                        }`}>
+                                            {selectedNotification.status.charAt(0).toUpperCase() + selectedNotification.status.slice(1)}
+                                        </span>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <div className="flex items-start">
+                                            <FaCalendar className="w-5 h-5 text-gray-400 mt-0.5 mr-3" />
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-900">Date</p>
+                                                <p className="text-sm text-gray-500">
+                                                    {new Date(selectedNotification.appointmentDate).toLocaleDateString('en-US', {
+                                                        weekday: 'long',
+                                                        year: 'numeric',
+                                                        month: 'long',
+                                                        day: 'numeric'
+                                                    })}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-start">
+                                            <FaClock className="w-5 h-5 text-gray-400 mt-0.5 mr-3" />
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-900">Time</p>
+                                                <p className="text-sm text-gray-500">{formatTime(selectedNotification.appointmentTime)}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-start">
+                                            <FaRegBell className="w-5 h-5 text-gray-400 mt-0.5 mr-3" />
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-900">Notification Received</p>
+                                                <p className="text-sm text-gray-500">{formatDate(selectedNotification.createdAt)}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-end">
+                            <button
+                                onClick={handleCloseModal}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                            >
+                                Close
+                            </button>
                         </div>
                     </div>
                 </div>

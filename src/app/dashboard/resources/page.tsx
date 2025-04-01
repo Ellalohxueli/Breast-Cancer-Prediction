@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Poppins } from "next/font/google";
-import { FaRegBell, FaRegUser, FaPhone, FaEnvelope, FaMapMarkerAlt, FaFacebookF, FaTwitter, FaInstagram, FaLinkedinIn, FaUsers, FaComments } from "react-icons/fa";
+import { FaRegBell, FaRegUser, FaPhone, FaEnvelope, FaMapMarkerAlt, FaFacebookF, FaTwitter, FaInstagram, FaLinkedinIn, FaUsers, FaComments, FaCalendar, FaClock } from "react-icons/fa";
 import { BiMessageRounded } from "react-icons/bi";
 import Link from "next/link";
 import useCheckCookies from "@/controller/UseCheckCookie";
@@ -40,6 +40,19 @@ interface Resource {
     };
 }
 
+type NotificationData = {
+    _id: string;
+    doctorId: string;
+    patientId: string;
+    appointmentDate: string;
+    appointmentDay: string;
+    appointmentTime: string;
+    status: 'cancelled' | 'rescheduled';
+    isRead: boolean;
+    createdAt: string;
+    updatedAt: string;
+};
+
 function formatTime(time: string): string {
     // Handle empty or invalid time
     if (!time) return "";
@@ -63,7 +76,7 @@ function formatTime(time: string): string {
 export default function ResourcesPage() {
     const router = useRouter();
     const [messageCount, setMessageCount] = useState(3);
-    const [notificationCount, setNotificationCount] = useState(5);
+    const [notificationCount, setNotificationCount] = useState(0);
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [resourceTab, setResourceTab] = useState("All Resources");
     const [showAllEventsModal, setShowAllEventsModal] = useState(false);
@@ -105,6 +118,12 @@ export default function ResourcesPage() {
         confirmPassword: ''
     });
     const [profileSuccessMessage, setProfileSuccessMessage] = useState(false);
+    const [notifications, setNotifications] = useState<NotificationData[]>([]);
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+    const [notificationError, setNotificationError] = useState<string | null>(null);
+    const [selectedNotification, setSelectedNotification] = useState<NotificationData | null>(null);
+    const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
 
     useCheckCookies();
 
@@ -523,6 +542,10 @@ export default function ResourcesPage() {
         setIsProfileModalOpen(false);
     };
 
+    const handleAllEventsModalClose = () => {
+        setShowAllEventsModal(false);
+    };
+
     useEffect(() => {
         const fetchUserData = async () => {
             if (isProfileModalOpen) {
@@ -540,6 +563,102 @@ export default function ResourcesPage() {
 
         fetchUserData();
     }, [isProfileModalOpen]);
+
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString);
+        const today = new Date();
+        const isToday = date.getDate() === today.getDate() &&
+                        date.getMonth() === today.getMonth() &&
+                        date.getFullYear() === today.getFullYear();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const isYesterday = date.getDate() === yesterday.getDate() &&
+                            date.getMonth() === yesterday.getMonth() &&
+                            date.getFullYear() === yesterday.getFullYear();
+        if (isToday) {
+            const hours = date.getHours();
+            const minutes = date.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const formattedHours = hours % 12 || 12;
+            const formattedMinutes = minutes < 10 ? `0${minutes}` : minutes;
+            return `Today at ${formattedHours}:${formattedMinutes} ${ampm}`;
+        } else if (isYesterday) {
+            return 'Yesterday';
+        } else {
+            const options: Intl.DateTimeFormatOptions = {
+                month: 'short',
+                day: 'numeric'
+            };
+            if (date.getFullYear() !== today.getFullYear()) {
+                options.year = 'numeric';
+            }
+            return date.toLocaleDateString('en-US', options);
+        }
+    };
+
+    const formatTime = (time: string) => {
+        const [hours, minutes] = time.split(':').map(Number);
+        const period = hours >= 12 ? 'PM' : 'AM';
+        const formattedHours = hours % 12 || 12;
+        return `${formattedHours}:${minutes < 10 ? '0' + minutes : minutes} ${period}`;
+    };
+
+    useEffect(() => {
+        const fetchNotifications = async () => {
+            if (isDropdownOpen) {
+                setIsLoadingNotifications(true);
+                setNotificationError(null);
+                try {
+                    const response = await axios.get('/api/notifications');
+                    if (response.data.success) {
+                        setNotifications(response.data.notifications);
+                        const unreadCount = response.data.notifications.filter(
+                            (n: NotificationData) => !n.isRead
+                        ).length;
+                        setNotificationCount(unreadCount);
+                    }
+                } catch (error) {
+                    console.error('Error fetching notifications:', error);
+                    setNotificationError('Failed to load notifications');
+                } finally {
+                    setIsLoadingNotifications(false);
+                }
+            }
+        };
+
+        fetchNotifications();
+    }, [isDropdownOpen]);
+
+    const handleNotificationClick = async (notification: NotificationData) => {
+        try {
+            if (!notification.isRead) {
+                const response = await axios.put('/api/notifications/read', {
+                    notificationId: notification._id
+                });
+
+                if (response.data.success) {
+                    setNotifications(prevNotifications => 
+                        prevNotifications.map(n => 
+                            n._id === notification._id 
+                                ? { ...n, isRead: true }
+                                : n
+                        )
+                    );
+                    setNotificationCount(prev => Math.max(0, prev - 1));
+                }
+            }
+
+            setSelectedNotification(notification);
+            setIsNotificationModalOpen(true);
+        } catch (error) {
+            console.error('Error updating notification read status:', error);
+        }
+    };
+
+    const handleCloseModal = () => {
+        setSelectedNotification(null);
+        setIsNotificationModalOpen(false);
+    };
 
     return (
         <div id="top" className={`min-h-screen bg-gray-50 ${poppins.className}`}>
@@ -594,14 +713,75 @@ export default function ResourcesPage() {
                                     </a>
                                 </li>
                                 <li>
-                                    <a href="#" className="text-gray-600 hover:text-pink-600 relative">
-                                        <FaRegBell className="h-6 w-6" aria-label="Notifications" />
-                                        {notificationCount > 0 && (
-                                            <span className="absolute -top-2 -right-2 bg-pink-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                                                {notificationCount}
-                                            </span>
+                                    <div className="relative">
+                                        <button 
+                                            onClick={() => setIsDropdownOpen(!isDropdownOpen)} 
+                                            className="text-gray-600 hover:text-pink-600 relative p-2 rounded-full hover:bg-gray-100"
+                                        >
+                                            <FaRegBell className="h-6 w-6" aria-label="Notifications" />
+                                            {notificationCount > 0 && (
+                                                <span className="absolute top-0 right-0 bg-pink-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center text-[10px]">
+                                                    {notificationCount}
+                                                </span>
+                                            )}
+                                        </button>
+
+                                        {isDropdownOpen && (
+                                            <div className="absolute right-0 mt-2 w-96 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+                                                <div className="px-4 py-2 border-b border-gray-200">
+                                                    <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
+                                                </div>
+                                                
+                                                <div className="max-h-96 overflow-y-auto">
+                                                    {isLoadingNotifications ? (
+                                                        <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                                                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-pink-600 mx-auto"></div>
+                                                            <p className="mt-2">Loading notifications...</p>
+                                                        </div>
+                                                    ) : notificationError ? (
+                                                        <div className="px-4 py-3 text-sm text-red-500">
+                                                            {notificationError}
+                                                        </div>
+                                                    ) : notifications.length > 0 ? (
+                                                        notifications.map((notification) => (
+                                                            <div 
+                                                                key={notification._id} 
+                                                                className={`px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-0 ${
+                                                                    !notification.isRead ? 'bg-pink-50' : ''
+                                                                } cursor-pointer`}
+                                                                onClick={() => handleNotificationClick(notification)}
+                                                            >
+                                                                <div className="flex items-start">
+                                                                    <div className="flex-1">
+                                                                        <p className="text-sm font-medium text-gray-900">
+                                                                            Appointment {notification.status}
+                                                                        </p>
+                                                                        <p className="text-xs text-gray-600 mt-1">
+                                                                            {notification.appointmentDay}, {new Date(notification.appointmentDate).toLocaleDateString('en-US', {
+                                                                                year: 'numeric',
+                                                                                month: 'long',
+                                                                                day: 'numeric'
+                                                                            })} at {formatTime(notification.appointmentTime)}
+                                                                        </p>
+                                                                        <p className="text-xs text-gray-500 mt-2">
+                                                                            {formatDate(notification.createdAt)}
+                                                                        </p>
+                                                                    </div>
+                                                                    {!notification.isRead && (
+                                                                        <span className="h-2 w-2 bg-pink-500 rounded-full mt-1"></span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                                                            No notifications
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
                                         )}
-                                    </a>
+                                    </div>
                                 </li>
                                 <li className="relative">
                                     <button 
@@ -768,7 +948,7 @@ export default function ResourcesPage() {
             {showAllEventsModal && (
                 <>
                     {/* Backdrop with blur effect */}
-                    <div className="fixed inset-0 z-40 backdrop-blur-sm" onClick={() => setShowAllEventsModal(false)} />
+                    <div className="fixed inset-0 z-40 backdrop-blur-sm" onClick={handleAllEventsModalClose} />
 
                     {/* Modal content */}
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -777,7 +957,7 @@ export default function ResourcesPage() {
                             <div className="p-6 border-b border-gray-200 flex justify-between items-center flex-shrink-0">
                                 <h3 className="text-2xl font-bold text-gray-900">All Upcoming Events</h3>
                                 <button 
-                                    onClick={handleCancelClick}
+                                    onClick={handleAllEventsModalClose}
                                     className="text-gray-400 hover:text-gray-500 transition-colors"
                                 >
                                     <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -808,7 +988,7 @@ export default function ResourcesPage() {
                             {/* Modal Footer */}
                             <div className="p-6 border-t border-gray-200 flex-shrink-0">
                                 <button
-                                    onClick={handleCancelClick}
+                                    onClick={handleAllEventsModalClose}
                                     className="w-full md:w-auto px-6 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
                                 >
                                     Close
@@ -1158,6 +1338,90 @@ export default function ResourcesPage() {
             {profileSuccessMessage && (
                 <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
                     {activeTab === 'profile' ? 'Profile updated successfully!' : 'Password changed successfully!'}
+                </div>
+            )}
+
+            {/* Notification Modal */}
+            {isNotificationModalOpen && selectedNotification && (
+                <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+                        {/* Modal Header */}
+                        <div className="px-6 py-4 border-b border-gray-200">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-lg font-semibold text-gray-900">
+                                    Appointment {selectedNotification.status.charAt(0).toUpperCase() + selectedNotification.status.slice(1)}
+                                </h3>
+                                <button 
+                                    onClick={handleCloseModal}
+                                    className="text-gray-400 hover:text-gray-500 transition-colors"
+                                >
+                                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Modal Content */}
+                        <div className="px-6 py-4">
+                            <div className="space-y-4">
+                                <div>
+                                    <div className="flex items-center space-x-2 mb-4">
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                            selectedNotification.status === 'cancelled' 
+                                                ? 'bg-red-100 text-red-800' 
+                                                : 'bg-yellow-100 text-yellow-800'
+                                        }`}>
+                                            {selectedNotification.status.charAt(0).toUpperCase() + selectedNotification.status.slice(1)}
+                                        </span>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <div className="flex items-start">
+                                            <FaCalendar className="w-5 h-5 text-gray-400 mt-0.5 mr-3" />
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-900">Date</p>
+                                                <p className="text-sm text-gray-500">
+                                                    {new Date(selectedNotification.appointmentDate).toLocaleDateString('en-US', {
+                                                        weekday: 'long',
+                                                        year: 'numeric',
+                                                        month: 'long',
+                                                        day: 'numeric'
+                                                    })}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-start">
+                                            <FaClock className="w-5 h-5 text-gray-400 mt-0.5 mr-3" />
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-900">Time</p>
+                                                <p className="text-sm text-gray-500">{formatTime(selectedNotification.appointmentTime)}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-start">
+                                            <FaRegBell className="w-5 h-5 text-gray-400 mt-0.5 mr-3" />
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-900">Notification Received</p>
+                                                <p className="text-sm text-gray-500">{formatDate(selectedNotification.createdAt)}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-end">
+                            <button
+                                onClick={handleCloseModal}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

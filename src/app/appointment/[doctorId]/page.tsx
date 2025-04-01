@@ -56,6 +56,7 @@ interface BookedAppointment {
         endTime: string;
     };
     appointmentType: 'Consultation' | 'Follow-up';
+    status: string;
 }
 
 interface Doctor {
@@ -247,20 +248,41 @@ export default function AppointmentPage() {
 
                 // Filter out any time slot that is already booked on the selected date.
                 const filteredTimeSlots = scheduleForSelectedDay.timeSlots.filter((slot: any) => {
-                    // Check if any booked appointment exists for this time slot on the selected date.
-                    const isBooked = bookedAppointments.some((booked) => {
+                    // Log the current slot being checked
+                    console.log(`Checking slot: ${slot.startTime} - ${slot.endTime}`);
+
+                    // Check booked appointments for this slot
+                    const bookedAppointmentsForSlot = bookedAppointments.filter((booked) => {
                         const bookedDate = new Date(booked.dateRange.startDate);
-                        // Compare the booked date with the selected date.
                         const isSameDate = bookedDate.toDateString() === selectedDateObj.toDateString();
-                        // Check if the booked appointment is for the same day (e.g., "MON").
                         const isSameDay = booked.day === selectedDateDay;
-                        // Verify that the time slot matches.
                         const isSameTimeSlot = booked.timeSlot.startTime === slot.startTime && booked.timeSlot.endTime === slot.endTime;
-                        return isSameDate && isSameDay && isSameTimeSlot;
+                        
+                        // If this is a matching appointment, log its details
+                        if (isSameDate && isSameDay && isSameTimeSlot) {
+                            console.log('Found matching appointment:', {
+                                slot: `${slot.startTime} - ${slot.endTime}`,
+                                status: booked.status,
+                                date: booked.dateRange.startDate,
+                                day: booked.day
+                            });
+                        }
+                        
+                        return isSameDate && isSameDay && isSameTimeSlot && booked.status === "Booked";
                     });
-                    // Only keep the slot if it is not booked.
-                    return !isBooked;
+
+                    // Log whether the slot will be kept or filtered out
+                    const isSlotAvailable = bookedAppointmentsForSlot.length === 0;
+                    console.log(`Slot ${slot.startTime} - ${slot.endTime} is ${isSlotAvailable ? 'available' : 'filtered out'}`);
+
+                    return isSlotAvailable;
                 });
+
+                // Log the final filtered time slots
+                console.log('Final filtered time slots:', filteredTimeSlots.map(slot => ({
+                    time: `${slot.startTime} - ${slot.endTime}`,
+                    id: slot._id
+                })));
 
                 // Return a new appointment object with an updated weeklySchedule
                 // that only contains the selected day's schedule and its filtered time slots.

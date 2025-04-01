@@ -4,8 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Poppins } from 'next/font/google';
-import { FaRegBell } from 'react-icons/fa';
-import { FaRegUser } from 'react-icons/fa';
+import { FaRegBell, FaRegUser, FaCalendar, FaClock } from 'react-icons/fa';
 import { BiMessageRounded } from 'react-icons/bi';
 import Link from 'next/link';
 import useCheckCookies from '@/controller/UseCheckCookie';
@@ -36,10 +35,23 @@ interface BookedAppointment {
         startTime: string;
         endTime: string;
     };
-    status: 'Booked' | 'Pending' | 'Completed' | 'Cancelled';
+    status: 'Booked' | 'Upcoming' | 'Completed' | 'Cancelled' | 'Rescheduled';
     appointmentType: 'Consultation' | 'Follow-up';
     doctor?: Doctor;
 }
+
+type NotificationData = {
+    _id: string;
+    doctorId: string;
+    patientId: string;
+    appointmentDate: string;
+    appointmentDay: string;
+    appointmentTime: string;
+    status: 'cancelled' | 'rescheduled';
+    isRead: boolean;
+    createdAt: string;
+    updatedAt: string;
+};
 
 // Helper function to format time to 12-hour format with AM/PM
 const formatTime = (time: string) => {
@@ -53,7 +65,7 @@ const formatTime = (time: string) => {
 export default function AppointmentsPage() {
     const router = useRouter();
     const [messageCount, setMessageCount] = useState(3);
-    const [notificationCount, setNotificationCount] = useState(5);
+    const [notificationCount, setNotificationCount] = useState(0);
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'booked' | 'past'>('booked');
@@ -87,8 +99,18 @@ export default function AppointmentsPage() {
         confirmPassword: ''
     });
     const [bookedAppointments, setBookedAppointments] = useState<BookedAppointment[]>([]);
+    const [cancelledAppointments, setCancelledAppointments] = useState<BookedAppointment[]>([]);
     const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
     const [appointmentError, setAppointmentError] = useState<string | null>(null);
+    const [rescheduleConfirmationModal, setRescheduleConfirmationModal] = useState(false);
+    const [appointmentToReschedule, setAppointmentToReschedule] = useState<BookedAppointment | null>(null);
+    const [showRescheduleSuccessMessage, setShowRescheduleSuccessMessage] = useState(false);
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [notifications, setNotifications] = useState<NotificationData[]>([]);
+    const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+    const [notificationError, setNotificationError] = useState<string | null>(null);
+    const [selectedNotification, setSelectedNotification] = useState<NotificationData | null>(null);
+    const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
 
     useCheckCookies();
 
@@ -290,6 +312,75 @@ export default function AppointmentsPage() {
         setIsProfileModalOpen(false);
     };
 
+    const confirmReschedule = async () => {
+        if (!appointmentToReschedule) return;
+
+        try {
+            const malaysiaOffset = 8 * 60 * 60 * 1000;
+            const now = new Date();
+            const malaysiaTime = new Date(now.getTime() + malaysiaOffset);
+
+            const response = await axios.put('/api/doctors/appointment/reschedule', {
+                appointmentId: appointmentToReschedule._id,
+                updatedAt: malaysiaTime.toISOString()
+            });
+
+            if (response.data.success) {
+                setRescheduleConfirmationModal(false);
+                setAppointmentToReschedule(null);
+                setShowRescheduleSuccessMessage(true);
+                
+                setTimeout(() => {
+                    setShowRescheduleSuccessMessage(false);
+                    if (appointmentToReschedule.doctor?._id) {
+                        router.push(`/appointment/${appointmentToReschedule.doctor._id}`);
+                    } else {
+                        console.error('Doctor ID not found in appointment data');
+                        alert('Error finding doctor information. Please try again.');
+                    }
+                }, 2000);
+            } else {
+                alert('Failed to reschedule appointment');
+            }
+        } catch (error) {
+            console.error('Error rescheduling appointment:', error);
+            alert('Failed to reschedule appointment');
+        }
+    };
+
+    const formatDate = (dateString: string) => {
+        const malaysiaOffset = 8 * 60 * 60 * 1000;
+        const now = new Date();
+        const malaysiaTime = new Date(now.getTime() + malaysiaOffset);
+        const createdAt = new Date(dateString);
+        
+        const diffInMs = malaysiaTime.getTime() - createdAt.getTime();
+        const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+        const diffInHours = Math.floor(diffInMinutes / 60);
+        const diffInDays = Math.floor(diffInHours / 24);
+
+        if (diffInMinutes < 1) {
+            return 'just now';
+        } else if (diffInMinutes < 60) {
+            return `${diffInMinutes} ${diffInMinutes === 1 ? 'minute' : 'minutes'} ago`;
+        } else if (diffInHours < 24) {
+            const remainingMinutes = diffInMinutes % 60;
+            if (remainingMinutes === 0) {
+                return `${diffInHours} ${diffInHours === 1 ? 'hour' : 'hours'} ago`;
+            } else {
+                return `${diffInHours}h ${remainingMinutes}m ago`;
+            }
+        } else if (diffInDays < 7) {
+            return `${diffInDays} ${diffInDays === 1 ? 'day' : 'days'} ago`;
+        } else {
+            return createdAt.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+    };
+
     useEffect(() => {
         const fetchUserData = async () => {
             if (isProfileModalOpen) {
@@ -325,15 +416,37 @@ export default function AppointmentsPage() {
                 
                 if (response.data.success) {
                     const appointments = response.data.appointments;
-                    console.log('All appointments:', appointments); // Debug log
                     
-                    // Filter appointments to show only "Booked" status
+                    // Filter appointments for booked/upcoming tab
                     const booked = appointments.filter((apt: BookedAppointment) => {
-                        return apt.status === 'Booked';
+                        return apt.status === 'Booked' || apt.status === 'Upcoming';
                     });
+
+                    // Filter appointments for past/cancelled/rescheduled tab
+                    const cancelled = appointments
+                        .filter((apt: BookedAppointment) => {
+                            return apt.status === 'Cancelled' || apt.status === 'Rescheduled';
+                        })
+                        .sort((a: BookedAppointment, b: BookedAppointment) => {
+                            // First sort by date
+                            const dateA = new Date(a.dateRange.startDate);
+                            const dateB = new Date(b.dateRange.startDate);
+                            const dateDiff = dateB.getTime() - dateA.getTime();
+                            
+                            // If dates are the same, sort by time
+                            if (dateDiff === 0) {
+                                const timeA = a.timeSlot.startTime.split(':').map(Number);
+                                const timeB = b.timeSlot.startTime.split(':').map(Number);
+                                const minutesA = timeA[0] * 60 + timeA[1];
+                                const minutesB = timeB[0] * 60 + timeB[1];
+                                return minutesB - minutesA;
+                            }
+                            
+                            return dateDiff;
+                        });
                     
-                    console.log('Filtered booked appointments:', booked); // Debug log
                     setBookedAppointments(booked);
+                    setCancelledAppointments(cancelled);
                 }
             } catch (error: any) {
                 console.error('Error fetching appointments:', error);
@@ -345,6 +458,82 @@ export default function AppointmentsPage() {
 
         fetchAppointments();
     }, []);
+
+    useEffect(() => {
+        const fetchInitialNotifications = async () => {
+            try {
+                const response = await axios.get('/api/notifications');
+                if (response.data.success) {
+                    setNotifications(response.data.notifications);
+                    const unreadCount = response.data.notifications.filter(
+                        (n: NotificationData) => !n.isRead
+                    ).length;
+                    setNotificationCount(unreadCount);
+                }
+            } catch (error) {
+                console.error('Error fetching initial notifications:', error);
+            }
+        };
+
+        fetchInitialNotifications();
+    }, []);
+
+    useEffect(() => {
+        const fetchNotifications = async () => {
+            if (isDropdownOpen) {
+                setIsLoadingNotifications(true);
+                setNotificationError(null);
+                try {
+                    const response = await axios.get('/api/notifications');
+                    if (response.data.success) {
+                        setNotifications(response.data.notifications);
+                        const unreadCount = response.data.notifications.filter(
+                            (n: NotificationData) => !n.isRead
+                        ).length;
+                        setNotificationCount(unreadCount);
+                    }
+                } catch (error) {
+                    console.error('Error fetching notifications:', error);
+                    setNotificationError('Failed to load notifications');
+                } finally {
+                    setIsLoadingNotifications(false);
+                }
+            }
+        };
+
+        fetchNotifications();
+    }, [isDropdownOpen]);
+
+    const handleNotificationClick = async (notification: NotificationData) => {
+        try {
+            if (!notification.isRead) {
+                const response = await axios.put('/api/notifications/read', {
+                    notificationId: notification._id
+                });
+
+                if (response.data.success) {
+                    setNotifications(prevNotifications => 
+                        prevNotifications.map(n => 
+                            n._id === notification._id 
+                                ? { ...n, isRead: true }
+                                : n
+                        )
+                    );
+                    setNotificationCount(prev => Math.max(0, prev - 1));
+                }
+            }
+
+            setSelectedNotification(notification);
+            setIsNotificationModalOpen(true);
+        } catch (error) {
+            console.error('Error updating notification read status:', error);
+        }
+    };
+
+    const handleCloseModal = () => {
+        setSelectedNotification(null);
+        setIsNotificationModalOpen(false);
+    };
 
     return (
         <div className={`min-h-screen bg-gray-50 ${poppins.className}`}>
@@ -417,14 +606,75 @@ export default function AppointmentsPage() {
                                     </a>
                                 </li>
                                 <li>
-                                    <a href="#" className="text-gray-600 hover:text-pink-600 relative">
-                                        <FaRegBell className="h-6 w-6" aria-label="Notifications" />
-                                        {notificationCount > 0 && (
-                                            <span className="absolute -top-2 -right-2 bg-pink-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                                                {notificationCount}
-                                            </span>
+                                    <div className="relative">
+                                        <button 
+                                            onClick={() => setIsDropdownOpen(!isDropdownOpen)} 
+                                            className="text-gray-600 hover:text-pink-600 relative p-2 rounded-full hover:bg-gray-100"
+                                        >
+                                            <FaRegBell className="h-6 w-6" aria-label="Notifications" />
+                                            {notificationCount > 0 && (
+                                                <span className="absolute top-0 right-0 bg-pink-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center text-[10px]">
+                                                    {notificationCount}
+                                                </span>
+                                            )}
+                                        </button>
+
+                                        {isDropdownOpen && (
+                                            <div className="absolute right-0 mt-2 w-96 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+                                                <div className="px-4 py-2 border-b border-gray-200">
+                                                    <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
+                                                </div>
+                                                
+                                                <div className="max-h-96 overflow-y-auto">
+                                                    {isLoadingNotifications ? (
+                                                        <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                                                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-pink-600 mx-auto"></div>
+                                                            <p className="mt-2">Loading notifications...</p>
+                                                        </div>
+                                                    ) : notificationError ? (
+                                                        <div className="px-4 py-3 text-sm text-red-500">
+                                                            {notificationError}
+                                                        </div>
+                                                    ) : notifications.length > 0 ? (
+                                                        notifications.map((notification) => (
+                                                            <div 
+                                                                key={notification._id} 
+                                                                className={`px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-0 ${
+                                                                    !notification.isRead ? 'bg-pink-50' : ''
+                                                                } cursor-pointer`}
+                                                                onClick={() => handleNotificationClick(notification)}
+                                                            >
+                                                                <div className="flex items-start">
+                                                                    <div className="flex-1">
+                                                                        <p className="text-sm font-medium text-gray-900">
+                                                                            Appointment {notification.status}
+                                                                        </p>
+                                                                        <p className="text-xs text-gray-600 mt-1">
+                                                                            {notification.appointmentDay}, {new Date(notification.appointmentDate).toLocaleDateString('en-US', {
+                                                                                year: 'numeric',
+                                                                                month: 'long',
+                                                                                day: 'numeric'
+                                                                            })} at {formatTime(notification.appointmentTime)}
+                                                                        </p>
+                                                                        <p className="text-xs text-gray-500 mt-2">
+                                                                            {formatDate(notification.createdAt)}
+                                                                        </p>
+                                                                    </div>
+                                                                    {!notification.isRead && (
+                                                                        <span className="h-2 w-2 bg-pink-500 rounded-full mt-1"></span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                                                            No notifications
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
                                         )}
-                                    </a>
+                                    </div>
                                 </li>
                                 <li className="relative">
                                     <button 
@@ -584,13 +834,38 @@ export default function AppointmentsPage() {
                                                     <div className="flex space-x-4">
                                                         <button 
                                                             className="px-4 py-2.5 text-sm font-medium text-pink-600 border border-pink-600 rounded-md hover:bg-pink-50 transition-colors"
-                                                            onClick={() => {/* Add reschedule logic */}}
+                                                            onClick={() => {
+                                                                setAppointmentToReschedule(appointment);
+                                                                setRescheduleConfirmationModal(true);
+                                                            }}
                                                         >
                                                             Reschedule
                                                         </button>
                                                         <button 
                                                             className="px-4 py-2.5 text-sm font-medium text-red-600 border border-red-600 rounded-md hover:bg-red-50 transition-colors"
-                                                            onClick={() => {/* Add cancel logic */}}
+                                                            onClick={async () => {
+                                                                try {
+                                                                    // Calculate Malaysia time (UTC+8)
+                                                                    const malaysiaOffset = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+                                                                    const now = new Date();
+                                                                    const malaysiaTime = new Date(now.getTime() + malaysiaOffset);
+
+                                                                    const response = await axios.put('/api/doctors/appointment/cancel', {
+                                                                        appointmentId: appointment._id,
+                                                                        updatedAt: malaysiaTime.toISOString()
+                                                                    });
+
+                                                                    if (response.data.success) {
+                                                                        // Refresh the appointments list
+                                                                        window.location.reload();
+                                                                    } else {
+                                                                        alert('Failed to cancel appointment');
+                                                                    }
+                                                                } catch (error) {
+                                                                    console.error('Error cancelling appointment:', error);
+                                                                    alert('Failed to cancel appointment');
+                                                                }
+                                                            }}
                                                         >
                                                             Cancel
                                                         </button>
@@ -614,9 +889,80 @@ export default function AppointmentsPage() {
                         </div>
                     ) : (
                         <div className="p-6">
-                            <div className="text-center text-gray-500 py-8">
-                                <p className="text-lg">No past appointments</p>
-                            </div>
+                            {cancelledAppointments.length > 0 ? (
+                                <div className="space-y-4">
+                                    {cancelledAppointments.map((appointment) => (
+                                        <div 
+                                            key={appointment._id} 
+                                            className="border rounded-lg p-6 hover:shadow-lg transition-shadow bg-white"
+                                        >
+                                            <div className="flex justify-between">
+                                                {/* Left side: Calendar icon with doctor info */}
+                                                <div className="flex items-center space-x-4">
+                                                    {/* Calendar Icon */}
+                                                    <div className="flex-shrink-0 w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                                                        <svg 
+                                                            className="w-6 h-6 text-gray-600" 
+                                                            fill="none" 
+                                                            stroke="currentColor" 
+                                                            viewBox="0 0 24 24"
+                                                        >
+                                                            <path 
+                                                                strokeLinecap="round" 
+                                                                strokeLinejoin="round" 
+                                                                strokeWidth="2" 
+                                                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" 
+                                                            />
+                                                        </svg>
+                                                    </div>
+
+                                                    {/* Doctor Info and Appointment Type */}
+                                                    <div className="space-y-1">
+                                                        <div className="text-xl font-bold text-gray-900">
+                                                            <span>{appointment.appointmentType}</span>
+                                                            <span className={`ml-2 text-sm font-normal px-2 py-1 rounded ${
+                                                                appointment.status === 'Cancelled' 
+                                                                    ? 'text-red-600 bg-red-50'
+                                                                    : 'text-orange-600 bg-orange-50'
+                                                            }`}>
+                                                                {appointment.status}
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-gray-600">
+                                                                with {appointment.doctor?.name || 'Doctor Name Not Available'}
+                                                            </h3>
+                                                            <p className="text-gray-500">
+                                                                {appointment.doctor?.specialization || 'Specialization Not Available'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Right side: Date and time */}
+                                                <div className="flex items-center text-gray-700">
+                                                    <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                                                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                    <span>
+                                                        {new Date(appointment.dateRange.startDate).toLocaleDateString('en-US', {
+                                                            weekday: 'short',
+                                                            year: 'numeric',
+                                                            month: 'long',
+                                                            day: 'numeric'
+                                                        })} at {formatTime(appointment.timeSlot.startTime)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center text-gray-500 py-8">
+                                    <p className="text-lg">No past appointments</p>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -790,7 +1136,7 @@ export default function AppointmentsPage() {
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                    Confirm New Password
+                                                    Confirm Password
                                                 </label>
                                                 <input
                                                     type="password"
@@ -814,26 +1160,11 @@ export default function AppointmentsPage() {
                         {/* Modal Footer */}
                         <div className="px-6 py-4 bg-gray-50/95 backdrop-blur-sm rounded-b-lg flex justify-end space-x-3">
                             <button
-                                onClick={handleCancelClick}
-                                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                                onClick={handleSaveChanges}
+                                className="px-4 py-2 text-sm font-medium text-white bg-pink-600 rounded-md hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
                             >
-                                Cancel
+                                Save Changes
                             </button>
-                            {activeProfileTab === 'profile' ? (
-                                <button
-                                    onClick={handleSaveChanges}
-                                    className="px-4 py-2 text-sm font-medium text-white bg-pink-600 hover:bg-pink-700 rounded-md transition-colors"
-                                >
-                                    Save Changes
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={handlePasswordChange}
-                                    className="px-4 py-2 text-sm font-medium text-white bg-pink-600 hover:bg-pink-700 rounded-md transition-colors"
-                                >
-                                    Change Password
-                                </button>
-                            )}
                         </div>
                     </div>
                 </div>
@@ -843,6 +1174,155 @@ export default function AppointmentsPage() {
             {profileSuccessMessage && (
                 <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
                     Profile updated successfully!
+                </div>
+            )}
+
+            {/* Reschedule Confirmation Modal */}
+            {rescheduleConfirmationModal && (
+                <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
+                    <div className="bg-white/95 rounded-lg p-8 w-full max-w-2xl relative shadow-xl backdrop-blur-sm border border-gray-200">
+                        <h2 className="text-2xl font-bold mb-6 text-gray-800">
+                            Confirm Reschedule
+                        </h2>
+                        <div className="mb-8 text-gray-600">
+                            <p className="text-lg mb-4">Are you sure you want to reschedule this appointment? The current appointment will be cancelled and a new appointment will be created.</p>
+                            {appointmentToReschedule && (
+                                <div className="mt-4 p-6 bg-gray-50 rounded-lg border border-gray-100">
+                                    <h3 className="text-lg font-semibold mb-4 text-gray-800">Appointment Details</h3>
+                                    <div className="space-y-3 text-base">
+                                        <div className="flex items-center">
+                                            <span className="font-medium w-24">Doctor:</span>
+                                            <span>{appointmentToReschedule.doctor?.name}</span>
+                                        </div>
+                                        <div className="flex items-center">
+                                            <span className="font-medium w-24">Date:</span>
+                                            <span>{new Date(appointmentToReschedule.dateRange.startDate).toLocaleDateString('en-US', {
+                                                weekday: 'short',
+                                                year: 'numeric',
+                                                month: 'long',
+                                                day: 'numeric'
+                                            })}</span>
+                                        </div>
+                                        <div className="flex items-center">
+                                            <span className="font-medium w-24">Time:</span>
+                                            <span>{formatTime(appointmentToReschedule.timeSlot.startTime)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex justify-end space-x-4">
+                            <button
+                                onClick={() => {
+                                    setRescheduleConfirmationModal(false);
+                                    setAppointmentToReschedule(null);
+                                }}
+                                className="px-6 py-2.5 rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 font-medium"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmReschedule}
+                                className="bg-pink-600 text-white px-6 py-2.5 rounded-lg hover:bg-pink-700 font-medium"
+                            >
+                                Confirm Reschedule
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showRescheduleSuccessMessage && (
+                <div className="fixed top-24 right-4 flex items-center bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg shadow-lg z-50">
+                    <div className="flex items-center">
+                        <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                        </svg>
+                        <p>Appointment rescheduled successfully!</p>
+                    </div>
+                </div>
+            )}
+
+            {isNotificationModalOpen && selectedNotification && (
+                <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+                        {/* Modal Header */}
+                        <div className="px-6 py-4 border-b border-gray-200">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-lg font-semibold text-gray-900">
+                                    Appointment {selectedNotification.status.charAt(0).toUpperCase() + selectedNotification.status.slice(1)}
+                                </h3>
+                                <button 
+                                    onClick={handleCloseModal}
+                                    className="text-gray-400 hover:text-gray-500 transition-colors"
+                                >
+                                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Modal Content */}
+                        <div className="px-6 py-4">
+                            <div className="space-y-4">
+                                <div>
+                                    <div className="flex items-center space-x-2 mb-4">
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                            selectedNotification.status === 'cancelled' 
+                                                ? 'bg-red-100 text-red-800' 
+                                                : 'bg-yellow-100 text-yellow-800'
+                                        }`}>
+                                            {selectedNotification.status.charAt(0).toUpperCase() + selectedNotification.status.slice(1)}
+                                        </span>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <div className="flex items-start">
+                                            <FaCalendar className="w-5 h-5 text-gray-400 mt-0.5 mr-3" />
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-900">Date</p>
+                                                <p className="text-sm text-gray-500">
+                                                    {new Date(selectedNotification.appointmentDate).toLocaleDateString('en-US', {
+                                                        weekday: 'long',
+                                                        year: 'numeric',
+                                                        month: 'long',
+                                                        day: 'numeric'
+                                                    })}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-start">
+                                            <FaClock className="w-5 h-5 text-gray-400 mt-0.5 mr-3" />
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-900">Time</p>
+                                                <p className="text-sm text-gray-500">{formatTime(selectedNotification.appointmentTime)}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-start">
+                                            <FaRegBell className="w-5 h-5 text-gray-400 mt-0.5 mr-3" />
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-900">Notification Received</p>
+                                                <p className="text-sm text-gray-500">{formatDate(selectedNotification.createdAt)}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-end">
+                            <button
+                                onClick={handleCloseModal}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

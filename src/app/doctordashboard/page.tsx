@@ -9,11 +9,28 @@ import axios from 'axios';
 import { FiHome, FiCalendar, FiUsers, FiMessageSquare, FiFileText, FiLogOut, FiGrid, FiBell, FiSun, FiMoon, FiUser, FiMessageCircle, FiChevronDown, FiClock, FiMoreVertical } from 'react-icons/fi';
 import useCheckCookies from '@/controller/UseCheckCookie';
 import { FaRegUser } from 'react-icons/fa';
+import { toast } from 'react-hot-toast';
 
 const poppins = Poppins({
     weight: ['400', '500', '600', '700'],
     subsets: ['latin'],
 });
+
+interface BookedAppointment {
+    _id: string;
+    dateRange: {
+        startDate: string;
+    };
+    timeSlot: {
+        startTime: string;
+    };
+    status: string;
+    patient: {
+        _id: string;
+        firstname: string;
+        lastname: string;
+    };
+}
 
 export default function DoctorDashboard() {
     const router = useRouter();
@@ -53,6 +70,12 @@ export default function DoctorDashboard() {
     const [todayAppointments, setTodayAppointments] = useState<any[]>([]);
     const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
     const [appointmentError, setAppointmentError] = useState<string | null>(null);
+    const [totalPatients, setTotalPatients] = useState(0);
+    const [todayStats, setTodayStats] = useState({
+        total: 0,
+        completed: 0,
+        remaining: 0
+    });
 
     // Check Cookies Token
     useCheckCookies();
@@ -116,7 +139,27 @@ export default function DoctorDashboard() {
         }
     }, [isProfileModalOpen]);
 
-    // Add this useEffect to fetch appointments
+    // Update the function to calculate today's appointments
+    const calculateTodayAppointments = (appointments: any[]) => {
+        const today = new Date();
+        const todayAppointments = appointments.filter(appointment => {
+            const appointmentDate = new Date(appointment.dateRange.startDate);
+            return appointmentDate.toDateString() === today.toDateString();
+        });
+
+        // Only count appointments with 'Booked' status for total
+        const total = todayAppointments.filter(app => app.status === 'Booked').length;
+        const completed = todayAppointments.filter(app => app.status === 'Completed').length;
+        const remaining = todayAppointments.filter(app => app.status === 'Booked').length;
+
+        return {
+            total,
+            completed,
+            remaining
+        };
+    };
+
+    // Update the useEffect that fetches appointments
     useEffect(() => {
         const fetchTodayAppointments = async () => {
             setIsLoadingAppointments(true);
@@ -124,7 +167,17 @@ export default function DoctorDashboard() {
             try {
                 const response = await axios.get('/api/doctors/appointment');
                 if (response.data.success) {
+                    console.log('Appointments data:', response.data.appointments);
                     setTodayAppointments(response.data.appointments);
+                    
+                    // Calculate today's appointment stats
+                    const stats = calculateTodayAppointments(response.data.appointments);
+                    setTodayStats(stats);
+                    
+                    // Set total patients count - handle potential undefined
+                    const totalCount = response.data.totalPatientsCount || 0;
+                    setTotalPatients(totalCount);
+                    
                 }
             } catch (error: any) {
                 console.error('Error fetching appointments:', error);
@@ -407,6 +460,119 @@ export default function DoctorDashboard() {
         return `${formattedHour}:${minutes} ${ampm}`;
     };
 
+    // Update the getAppointmentStatus function
+    const getAppointmentStatus = (status: string) => {
+        switch (status) {
+            case 'Booked':
+                return {
+                    style: 'bg-yellow-100 text-yellow-800',
+                    text: 'Upcoming'
+                };
+            case 'Completed':
+                return {
+                    style: 'bg-green-100 text-green-800',
+                    text: 'Completed'
+                };
+            case 'Cancelled':
+                return {
+                    style: 'bg-red-100 text-red-800',
+                    text: 'Cancelled'
+                };
+            case 'Rescheduled':
+                return {
+                    style: 'bg-orange-100 text-orange-800',
+                    text: 'Rescheduled'
+                };
+            default:
+                return {
+                    style: 'bg-gray-100 text-gray-800',
+                    text: status
+                };
+        }
+    };
+
+    // Update the getNextAppointment function
+    const getNextAppointment = (appointments: any[]) => {
+        return appointments
+            .filter(appointment => {
+                // Only filter appointments that:
+                // 1. Are not cancelled
+                // 2. Are not completed
+                // 3. Are not rescheduled
+                // 4. Are Booked/Upcoming
+                return appointment.status === 'Booked' || 
+                       getAppointmentStatus(appointment.status).text === 'Upcoming';
+            })
+            .sort((a, b) => {
+                const aTime = new Date(a.dateRange.startDate);
+                const bTime = new Date(b.dateRange.startDate);
+                aTime.setHours(parseInt(a.timeSlot.startTime.split(':')[0]), parseInt(a.timeSlot.startTime.split(':')[1]));
+                bTime.setHours(parseInt(b.timeSlot.startTime.split(':')[0]), parseInt(b.timeSlot.startTime.split(':')[1]));
+                return aTime.getTime() - bTime.getTime();
+            })[0];
+    };
+
+    // Add this helper function after your state declarations
+    const isCurrentMonth = (date: string) => {
+        const appointmentDate = new Date(date);
+        const now = new Date();
+        return appointmentDate.getMonth() === now.getMonth() && 
+               appointmentDate.getFullYear() === now.getFullYear();
+    };
+
+    const handleCancelAppointment = async (appointment: BookedAppointment) => {
+        try {
+            // Log the appointment data for debugging
+            console.log('Full appointment data:', appointment);
+
+            // Create the notification with all required data
+            const notificationData = {
+                appointmentId: appointment._id,
+                patientId: appointment.patient._id,
+                appointmentDate: new Date(appointment.dateRange.startDate).toISOString(), // Convert to ISO string
+                appointmentDay: new Date(appointment.dateRange.startDate).toLocaleDateString('en-US', { weekday: 'long' }),
+                appointmentTime: appointment.timeSlot.startTime,
+                status: 'cancelled'
+            };
+
+            // Log the data being sent to notification API
+            console.log('Sending to notification API:', notificationData);
+
+            try {
+                const response = await axios.post('/api/notifications', notificationData, {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                console.log('API Response:', response.data);
+
+                if (response.data.success) {
+                    toast.success('Appointment cancelled successfully');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                }
+            } catch (axiosError: any) {
+                console.error('Axios error:', {
+                    message: axiosError.message,
+                    response: axiosError.response?.data,
+                    status: axiosError.response?.status,
+                    data: axiosError.response?.data
+                });
+                throw new Error(axiosError.response?.data?.error || axiosError.message);
+            }
+        } catch (error: any) {
+            console.error('Error details:', {
+                name: error.name,
+                message: error.message,
+                stack: error.stack
+            });
+            
+            toast.error(error.message || 'Failed to cancel appointment');
+        }
+    };
+
     return (
         <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'} ${poppins.className}`}>
             {/* Sidebar - Fixed */}
@@ -643,7 +809,7 @@ export default function DoctorDashboard() {
                                         }`}>Total Patients</h3>
                                         <p className={`text-2xl font-bold mt-1 ${
                                             isDarkMode ? 'text-white' : 'text-gray-900'
-                                        }`}>1,482</p>
+                                        }`}>{totalPatients}</p>
                                     </div>
                                     <div className={`p-3 rounded-lg ${
                                         isDarkMode ? 'bg-gray-700' : 'bg-pink-100'
@@ -654,15 +820,15 @@ export default function DoctorDashboard() {
                                     </div>
                                 </div>
                                 <div className="flex items-center">
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                                        </svg>
-                                        8.2%
-                                    </span>
-                                    <span className={`ml-2 text-sm ${
-                                        isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                    }`}>vs last month</span>
+                                    {isLoadingAppointments ? (
+                                        <span className={`text-sm ${
+                                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                        }`}>Loading...</span>
+                                    ) : (
+                                        <span className={`text-sm ${
+                                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                        }`}>for this year</span>
+                                    )}
                                 </div>
                             </div>
 
@@ -677,7 +843,7 @@ export default function DoctorDashboard() {
                                         }`}>Today's Appointments</h3>
                                         <p className={`text-2xl font-bold mt-1 ${
                                             isDarkMode ? 'text-white' : 'text-gray-900'
-                                        }`}>8</p>
+                                        }`}>{todayStats.total}</p>
                                     </div>
                                     <div className={`p-3 rounded-lg ${
                                         isDarkMode ? 'bg-gray-700' : 'bg-pink-100'
@@ -689,11 +855,11 @@ export default function DoctorDashboard() {
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                                        1 completed
+                                        {todayStats.completed} completed
                                     </span>
                                     <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-400'}`}>•</span>
                                     <span className={`text-sm font-medium ${isDarkMode ? 'text-pink-400' : 'text-pink-600'}`}>
-                                        5 remaining
+                                        {todayStats.remaining} remaining
                                     </span>
                                 </div>
                             </div>
@@ -736,15 +902,15 @@ export default function DoctorDashboard() {
                         {/* Main Dashboard Content */}
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                             {/* Today's Appointments Section - Left Column */}
-                            <div className={`lg:col-span-2 ${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-sm h-full`}>
-                                <div className="h-full flex flex-col">
+                            <div className={`lg:col-span-2 ${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-sm`}>
+                                <div className="flex flex-col h-[calc(90vh-220px)]">
                                     <div className={`p-6 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                                         <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                                             Today's Appointments
                                         </h2>
                                     </div>
 
-                                    {/* Appointments List */}
+                                    {/* Appointments List - Make it scrollable */}
                                     <div className="flex-1 overflow-y-auto p-6 space-y-4">
                                         {isLoadingAppointments ? (
                                             <div className="flex justify-center items-center h-full">
@@ -759,91 +925,110 @@ export default function DoctorDashboard() {
                                                 <p>No appointments scheduled for today</p>
                                             </div>
                                         ) : (
-                                            todayAppointments.map((appointment) => (
-                                                <div 
-                                                    key={appointment._id}
-                                                    className={`p-4 rounded-lg ${
-                                                        appointment.status === 'Booked'
-                                                            ? isDarkMode 
-                                                                ? 'bg-blue-900/30 hover:bg-blue-900/40'
-                                                                : 'bg-blue-50 hover:bg-blue-100'
-                                                            : isDarkMode 
-                                                                ? 'bg-gray-700 hover:bg-gray-600'
-                                                                : 'bg-gray-50 hover:bg-gray-100'
-                                                    } transition-colors`}
-                                                >
-                                                    <div className="flex items-center justify-between">
-                                                        <div className="flex items-center">
-                                                            <div className="w-10 h-10 rounded-full overflow-hidden bg-pink-100 flex-shrink-0 flex items-center justify-center">
-                                                                {appointment.patient?.image ? (
-                                                                    <Image
-                                                                        src={appointment.patient.image}
-                                                                        alt={`${appointment.patient.firstname} ${appointment.patient.lastname}`}
-                                                                        width={40}
-                                                                        height={40}
-                                                                        className="w-full h-full object-cover"
-                                                                    />
-                                                                ) : (
-                                                                    <span className={`text-sm font-medium ${
-                                                                        isDarkMode ? 'text-pink-800' : 'text-pink-800'
+                                            todayAppointments
+                                                .sort((a, b) => {
+                                                    // Sort cancelled and rescheduled appointments to the bottom
+                                                    if ((a.status === 'Cancelled' || a.status === 'Rescheduled') && 
+                                                        (b.status !== 'Cancelled' && b.status !== 'Rescheduled')) return 1;
+                                                    if ((a.status !== 'Cancelled' && a.status !== 'Rescheduled') && 
+                                                        (b.status === 'Cancelled' || b.status === 'Rescheduled')) return -1;
+                                                    
+                                                    // Sort by time for appointments with the same status
+                                                    return a.timeSlot.startTime.localeCompare(b.timeSlot.startTime);
+                                                })
+                                                .map((appointment) => (
+                                                    <div 
+                                                        key={appointment._id}
+                                                        className={`p-4 rounded-lg ${
+                                                            isDarkMode 
+                                                                ? appointment.status === 'Cancelled'
+                                                                    ? 'bg-gray-700/50'
+                                                                    : 'bg-gray-700 hover:bg-gray-600'
+                                                                : appointment.status === 'Cancelled'
+                                                                    ? 'bg-gray-50/80'
+                                                                    : 'bg-gray-50 hover:bg-gray-100'
+                                                        } transition-colors`}
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center">
+                                                                <div className={`w-10 h-10 rounded-full overflow-hidden bg-pink-100 flex-shrink-0 flex items-center justify-center`}>
+                                                                    {appointment.patient?.image ? (
+                                                                        <Image
+                                                                            src={appointment.patient.image}
+                                                                            alt={`${appointment.patient.firstname} ${appointment.patient.lastname}`}
+                                                                            width={40}
+                                                                            height={40}
+                                                                            className="w-full h-full object-cover"
+                                                                        />
+                                                                    ) : (
+                                                                        <span className={`text-sm font-medium ${
+                                                                            isDarkMode ? 'text-pink-800' : 'text-pink-800'
+                                                                        }`}>
+                                                                            {appointment.patient?.firstname?.charAt(0)}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="ml-3">
+                                                                    <p className={`text-sm font-medium ${
+                                                                        appointment.status === 'Cancelled'
+                                                                            ? isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                                                            : isDarkMode ? 'text-white' : 'text-gray-900'
                                                                     }`}>
-                                                                        {appointment.patient?.firstname?.charAt(0)}
-                                                                    </span>
-                                                                )}
+                                                                        {`${appointment.patient?.firstname} ${appointment.patient?.lastname}`}
+                                                                    </p>
+                                                                    <p className={`text-xs ${
+                                                                        appointment.status === 'Cancelled'
+                                                                            ? isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                                                                            : isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                                                    }`}>
+                                                                        {appointment.appointmentType}
+                                                                    </p>
+                                                                </div>
                                                             </div>
-                                                            <div className="ml-3">
-                                                                <p className={`text-sm font-medium ${
-                                                                    isDarkMode ? 'text-white' : 'text-gray-900'
+                                                            
+                                                            <div className="text-right">
+                                                                <p className={`text-sm font-medium mb-2 ${
+                                                                    appointment.status === 'Cancelled'
+                                                                        ? isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                                                        : isDarkMode ? 'text-gray-300' : 'text-gray-600'
                                                                 }`}>
-                                                                    {`${appointment.patient?.firstname} ${appointment.patient?.lastname}`}
+                                                                    {formatTime(appointment.timeSlot.startTime)}
                                                                 </p>
-                                                                <p className={`text-xs ${
-                                                                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                                                }`}>
-                                                                    {appointment.appointmentType}
-                                                                </p>
+                                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getAppointmentStatus(appointment.status).style}`}>
+                                                                    {getAppointmentStatus(appointment.status).text}
+                                                                </span>
                                                             </div>
                                                         </div>
-                                                        
-                                                        <div className="text-right">
-                                                            <p className={`text-sm font-medium mb-2 ${
-                                                                isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                                                            }`}>
-                                                                {formatTime(appointment.timeSlot.startTime)}
-                                                            </p>
-                                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                                appointment.status === 'Completed' ? 'bg-green-100 text-green-800' :
-                                                                appointment.status === 'Booked' ? 'bg-blue-100 text-blue-800' :
-                                                                appointment.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                                                                'bg-red-100 text-red-800'
-                                                            }`}>
-                                                                {appointment.status}
-                                                            </span>
-                                                        </div>
-                                                    </div>
 
-                                                    {appointment.status === 'Booked' && (
-                                                        <div className="flex justify-end mt-3 space-x-2">
-                                                            <button className={`p-2 rounded-lg ${
-                                                                isDarkMode 
-                                                                    ? 'bg-gray-600 hover:bg-gray-500 text-gray-300' 
-                                                                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                                                            } transition-colors`}>
-                                                                <FiCalendar className="w-4 h-4" />
-                                                            </button>
-                                                            <button className={`p-2 rounded-lg ${
-                                                                isDarkMode 
-                                                                    ? 'bg-gray-600 hover:bg-gray-500 text-gray-300' 
-                                                                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                                                            } transition-colors`}>
-                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                                </svg>
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))
+                                                        {/* Action buttons - Only show for active appointments */}
+                                                        {(appointment.status !== 'Cancelled' && appointment.status !== 'Rescheduled') && (
+                                                            <div className="flex justify-end mt-3 space-x-2">
+                                                                <div className="flex gap-2">
+                                                                    <button className={`p-2 rounded-lg ${
+                                                                        isDarkMode 
+                                                                            ? 'bg-orange-600 hover:bg-orange-500 text-gray-300' 
+                                                                            : 'bg-orange-200 hover:bg-orange-300 text-gray-700'
+                                                                    } transition-colors`}>
+                                                                        <FiCalendar className="w-4 h-4" />
+                                                                    </button>
+                                                                    
+                                                                    <button 
+                                                                        onClick={() => handleCancelAppointment(appointment)}
+                                                                        className={`p-2 rounded-lg ${
+                                                                            isDarkMode 
+                                                                                ? 'bg-red-600 hover:bg-red-500 text-gray-300' 
+                                                                                : 'bg-red-200 hover:bg-red-300 text-gray-700'
+                                                                        } transition-colors`}
+                                                                    >
+                                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                        </svg>
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))
                                         )}
                                     </div>
                                 </div>
@@ -858,77 +1043,93 @@ export default function DoctorDashboard() {
                                             Next Patient
                                         </h2>
                                         
-                                        {/* Patient Info Section */}
-                                        <div className="flex items-start space-x-4 mb-6">
-                                            <div className="w-16 h-16 rounded-full bg-pink-200 flex-shrink-0 flex items-center justify-center overflow-hidden relative">
-                                                {(doctorProfile.image || profileImage) ? (
-                                                    <Image 
-                                                        src={doctorProfile.image || profileImage}
-                                                        alt="Profile"
-                                                        width={64}
-                                                        height={64}
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                ) : (
-                                                    <span className={`text-xl font-medium ${isDarkMode ? 'text-gray-800' : 'text-pink-800'}`}>
-                                                        {doctorName.charAt(0)}
-                                                    </span>
-                                                )}
-                                                {/* Add status indicator */}
-                                                <div className="absolute -bottom-1 -right-1">
-                                                    <div className="bg-white dark:bg-gray-800 rounded-full p-0.5">
-                                                        <StatusIndicator status={currentStatus} />
-                                                    </div>
-                                                </div>
+                                        {isLoadingAppointments ? (
+                                            <div className="flex justify-center items-center h-40">
+                                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-600"></div>
                                             </div>
-                                            <div className="flex-1">
-                                                <h3 className={`text-lg font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                                    Maria Garcia
-                                                </h3>
-                                                <div className="flex flex-col mt-1 space-y-2">
-                                                    <div className="flex items-center space-x-3">
-                                                        <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                            Age: 42
-                                                        </span>
-                                                        <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                            •
-                                                        </span>
-                                                        <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                            Previous Visit: Jan 15, 2024
+                                        ) : appointmentError ? (
+                                            <div className="text-center text-red-600 h-40 flex items-center justify-center">
+                                                <p>{appointmentError}</p>
+                                            </div>
+                                        ) : (() => {
+                                            const nextAppointment = getNextAppointment(todayAppointments);
+                                            
+                                            if (!nextAppointment) {
+                                                return (
+                                                    <div className="text-center h-40 flex items-center justify-center">
+                                                        <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                            No more appointments for today
+                                                        </p>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <>
+                                                    {/* Patient Info Section */}
+                                                    <div className="flex items-start space-x-4 mb-6">
+                                                        <div className="w-16 h-16 rounded-full bg-pink-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                                                            {nextAppointment.patient?.image ? (
+                                                                <Image 
+                                                                    src={nextAppointment.patient.image}
+                                                                    alt={`${nextAppointment.patient.firstname} ${nextAppointment.patient.lastname}`}
+                                                                    width={64}
+                                                                    height={64}
+                                                                    className="w-full h-full object-cover"
+                                                                />
+                                                            ) : (
+                                                                <span className={`text-xl font-medium ${isDarkMode ? 'text-gray-800' : 'text-pink-800'}`}>
+                                                                    {nextAppointment.patient?.firstname?.charAt(0)}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <h3 className={`text-lg font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                                                {`${nextAppointment.patient?.firstname} ${nextAppointment.patient?.lastname}`}
+                                                            </h3>
+                                                            <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
+                                                                Age: {new Date().getFullYear() - new Date(nextAppointment.patient?.dob).getFullYear()} years old
+                                                            </p>
+                                                            <div className="flex flex-col mt-1 space-y-2">
+                                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                                    nextAppointment.appointmentType === 'Consultation'
+                                                                        ? 'bg-blue-100 text-blue-800'
+                                                                        : 'bg-green-100 text-green-800'
+                                                                } w-fit`}>
+                                                                    {nextAppointment.appointmentType}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Appointment Time */}
+                                                    <div className={`mb-6 flex items-center space-x-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                        <FiClock className="w-4 h-4" />
+                                                        <span className="text-sm">
+                                                            Appointment at {formatTime(nextAppointment.timeSlot.startTime)}
                                                         </span>
                                                     </div>
-                                                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 w-fit">
-                                                        Follow-up
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
 
-                                        {/* Appointment Time */}
-                                        <div className={`mb-6 flex items-center space-x-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                            <FiClock className="w-4 h-4" />
-                                            <span className="text-sm">
-                                                Appointment at 02:00 PM
-                                            </span>
-                                        </div>
-
-                                        {/* Action Buttons */}
-                                        <div className="flex items-center space-x-4">
-                                            <button className={`flex-grow px-8 py-2 rounded-lg font-medium text-sm transition-colors ${
-                                                isDarkMode
-                                                    ? 'bg-pink-500 hover:bg-pink-600 text-white'
-                                                    : 'bg-pink-600 hover:bg-pink-700 text-white'
-                                            }`}>
-                                                Start Consultation
-                                            </button>
-                                            <button className={`p-2 rounded-lg transition-colors ${
-                                                isDarkMode
-                                                    ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-                                                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                                            }`}>
-                                                <FiMoreVertical className="w-5 h-5" />
-                                            </button>
-                                        </div>
+                                                    {/* Action Buttons */}
+                                                    <div className="flex items-center space-x-4">
+                                                        <button className={`flex-grow px-8 py-2 rounded-lg font-medium text-sm transition-colors ${
+                                                            isDarkMode
+                                                                ? 'bg-pink-500 hover:bg-pink-600 text-white'
+                                                                : 'bg-pink-600 hover:bg-pink-700 text-white'
+                                                        }`}>
+                                                            Start Consultation
+                                                        </button>
+                                                        <button className={`p-2 rounded-lg transition-colors ${
+                                                            isDarkMode
+                                                                ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                                                                : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                                                        }`}>
+                                                            <FiMoreVertical className="w-5 h-5" />
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
 
