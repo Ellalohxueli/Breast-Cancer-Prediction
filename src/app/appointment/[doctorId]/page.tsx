@@ -246,7 +246,7 @@ export default function AppointmentPage() {
                 // Get the schedule for the selected day.
                 const scheduleForSelectedDay = appointment.weeklySchedule[selectedDateDay];
 
-                // Filter out any time slot that is already booked on the selected date.
+                // Filter out any time slot that is already booked or completed on the selected date.
                 const filteredTimeSlots = scheduleForSelectedDay.timeSlots.filter((slot: any) => {
                     // Log the current slot being checked
                     console.log(`Checking slot: ${slot.startTime} - ${slot.endTime}`);
@@ -268,7 +268,8 @@ export default function AppointmentPage() {
                             });
                         }
                         
-                        return isSameDate && isSameDay && isSameTimeSlot && booked.status === "Booked";
+                        // Filter out slots that are either "Booked" or "Completed"
+                        return isSameDate && isSameDay && isSameTimeSlot && (booked.status === "Booked" || booked.status === "Completed");
                     });
 
                     // Log whether the slot will be kept or filtered out

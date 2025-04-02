@@ -1414,12 +1414,29 @@ export default function ResourcesPage() {
 
                         {/* Modal Footer */}
                         <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-end">
-                            <button
-                                onClick={handleCloseModal}
-                                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-                            >
-                                Close
-                            </button>
+                            {selectedNotification.status === 'rescheduled' ? (
+                                <button
+                                    onClick={() => {
+                                        handleCloseModal();
+                                        if (selectedNotification.doctorId) {
+                                            router.push(`/appointment/${selectedNotification.doctorId}`);
+                                        } else {
+                                            console.error('Doctor ID not found in notification data');
+                                            alert('Error finding doctor information. Please try again.');
+                                        }
+                                    }}
+                                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+                                >
+                                    Book Again
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={handleCloseModal}
+                                    className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                                >
+                                    Close
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

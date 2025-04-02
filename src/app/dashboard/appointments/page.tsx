@@ -425,7 +425,7 @@ export default function AppointmentsPage() {
                     // Filter appointments for past/cancelled/rescheduled tab
                     const cancelled = appointments
                         .filter((apt: BookedAppointment) => {
-                            return apt.status === 'Cancelled' || apt.status === 'Rescheduled';
+                            return apt.status === 'Cancelled' || apt.status === 'Rescheduled' || apt.status === 'Completed';
                         })
                         .sort((a: BookedAppointment, b: BookedAppointment) => {
                             // First sort by date
@@ -923,6 +923,8 @@ export default function AppointmentsPage() {
                                                             <span className={`ml-2 text-sm font-normal px-2 py-1 rounded ${
                                                                 appointment.status === 'Cancelled' 
                                                                     ? 'text-red-600 bg-red-50'
+                                                                    : appointment.status === 'Completed'
+                                                                    ? 'text-green-600 bg-green-50'
                                                                     : 'text-orange-600 bg-orange-50'
                                                             }`}>
                                                                 {appointment.status}
@@ -940,19 +942,40 @@ export default function AppointmentsPage() {
                                                 </div>
 
                                                 {/* Right side: Date and time */}
-                                                <div className="flex items-center text-gray-700">
-                                                    <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                                                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                    </svg>
-                                                    <span>
-                                                        {new Date(appointment.dateRange.startDate).toLocaleDateString('en-US', {
-                                                            weekday: 'short',
-                                                            year: 'numeric',
-                                                            month: 'long',
-                                                            day: 'numeric'
-                                                        })} at {formatTime(appointment.timeSlot.startTime)}
-                                                    </span>
+                                                <div className="flex flex-col items-end space-y-4">
+                                                    {/* Date and Time */}
+                                                    <div className="flex items-center text-gray-700">
+                                                        <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                                                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                        </svg>
+                                                        <span>
+                                                            {new Date(appointment.dateRange.startDate).toLocaleDateString('en-US', {
+                                                                weekday: 'short',
+                                                                year: 'numeric',
+                                                                month: 'long',
+                                                                day: 'numeric'
+                                                            })} at {formatTime(appointment.timeSlot.startTime)}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Action Buttons for Completed Appointments */}
+                                                    {appointment.status === 'Completed' && (
+                                                        <div className="flex space-x-4">
+                                                            <button 
+                                                                onClick={() => router.push(`/dashboard/reports/${appointment._id}`)}
+                                                                className="px-4 py-2.5 text-sm font-medium text-blue-600 border border-blue-600 rounded-md hover:bg-blue-50 transition-colors"
+                                                            >
+                                                                View Report
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => router.push(`/dashboard/review/${appointment._id}`)}
+                                                                className="px-4 py-2.5 text-sm font-medium text-green-600 border border-green-600 rounded-md hover:bg-green-50 transition-colors"
+                                                            >
+                                                                Review
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -1315,12 +1338,29 @@ export default function AppointmentsPage() {
 
                         {/* Modal Footer */}
                         <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-end">
-                            <button
-                                onClick={handleCloseModal}
-                                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-                            >
-                                Close
-                            </button>
+                            {selectedNotification.status === 'rescheduled' ? (
+                                <button
+                                    onClick={() => {
+                                        handleCloseModal();
+                                        if (selectedNotification.doctorId) {
+                                            router.push(`/appointment/${selectedNotification.doctorId}`);
+                                        } else {
+                                            console.error('Doctor ID not found in notification data');
+                                            alert('Error finding doctor information. Please try again.');
+                                        }
+                                    }}
+                                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+                                >
+                                    Book Again
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={handleCloseModal}
+                                    className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                                >
+                                    Close
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

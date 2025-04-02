@@ -47,7 +47,7 @@ export async function POST(request: Request) {
         }
 
         // Update appointment status
-        appointment.status = 'Cancelled';
+        appointment.status = body.status === 'cancelled' ? 'Cancelled' : 'Rescheduled';
         await appointment.save();
         console.log('Updated appointment status');
 
@@ -58,14 +58,14 @@ export async function POST(request: Request) {
             appointmentDate: new Date(body.appointmentDate),
             appointmentDay: body.appointmentDay,
             appointmentTime: body.appointmentTime,
-            status: 'cancelled'
+            status: body.status
         });
 
         console.log('Created notification:', notification);
 
         return NextResponse.json({ 
             success: true,
-            message: 'Notification created and appointment cancelled successfully', 
+            message: `Appointment ${body.status} successfully`, 
             notification 
         }, { status: 201 });
 

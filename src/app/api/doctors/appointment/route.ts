@@ -118,13 +118,28 @@ export async function GET(req: Request) {
             }
         ]);
 
-        // Log the appointments for debugging
-        console.log('Fetched appointments:', JSON.stringify(appointments, null, 2));
+        // Calculate included and excluded patients counts
+        const includedPatientsCount = allAppointments.filter(apt => 
+            apt.status !== 'Cancelled' && apt.status !== 'Rescheduled'
+        ).length;
+
+        const excludedPatientsCount = allAppointments.filter(apt => 
+            apt.status === 'Cancelled' || apt.status === 'Rescheduled'
+        ).length;
+
+        // Log the counts for debugging
+        console.log('Patient counts:', {
+            total: allAppointments.length,
+            included: includedPatientsCount,
+            excluded: excludedPatientsCount
+        });
 
         return NextResponse.json({ 
             success: true, 
             appointments,
-            totalPatientsCount: allAppointments.length
+            totalPatientsCount: allAppointments.length,
+            includedPatientsCount,
+            excludedPatientsCount
         }, { status: 200 });
 
     } catch (error) {
