@@ -20,6 +20,20 @@ interface Doctor {
     image?: string;
 }
 
+interface Appointment {
+    _id: string;
+    patientName: string;
+    doctorName: string;
+    dateRange: {
+        startDate: string;
+    };
+    timeSlot: {
+        startTime: string;
+    };
+    status: string;
+    reason: string;
+}
+
 // First, add a type definition for your navigation items
 type NavigationItem = {
     href: string;
@@ -35,7 +49,9 @@ export default function AdminDashboard() {
     const [currentDate, setCurrentDate] = useState('');
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [doctors, setDoctors] = useState<Doctor[]>([]);
+    const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isLoadingAppointments, setIsLoadingAppointments] = useState(true);
     const pathname = usePathname();
     const [showInfoDropdown, setShowInfoDropdown] = useState(false);
     const [userCount, setUserCount] = useState(0);
@@ -80,7 +96,25 @@ export default function AdminDashboard() {
             }
         };
 
+        // Fetch appointments data
+        const fetchAppointments = async () => {
+            try {
+                setIsLoadingAppointments(true);
+                const response = await fetch('/api/admin/appointments');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch appointments');
+                }
+                const result = await response.json();
+                setAppointments(result.appointments || []);
+            } catch (error) {
+                console.error('Error fetching appointments:', error);
+            } finally {
+                setIsLoadingAppointments(false);
+            }
+        };
+
         fetchDoctors();
+        fetchAppointments();
     }, []);
 
     useEffect(() => {
@@ -174,6 +208,41 @@ export default function AdminDashboard() {
             )
         }
     ];
+
+    // Format time from 24-hour to 12-hour format
+    const formatTime = (time: string) => {
+        const [hours, minutes] = time.split(':');
+        const hour = parseInt(hours, 10);
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const formattedHour = hour % 12 || 12; // Convert 0 to 12 for 12 AM
+        return `${formattedHour}:${minutes} ${ampm}`;
+    };
+
+    // Get status style based on appointment status
+    const getStatusStyle = (status: string) => {
+        switch (status) {
+            case 'Completed':
+                return isDarkMode 
+                    ? 'bg-green-400/10 text-green-400'
+                    : 'bg-green-100 text-green-700';
+            case 'Ongoing':
+                return isDarkMode
+                    ? 'bg-blue-400/10 text-blue-400'
+                    : 'bg-blue-100 text-blue-700';
+            case 'Booked':
+                return isDarkMode
+                    ? 'bg-yellow-400/10 text-yellow-400'
+                    : 'bg-yellow-100 text-yellow-700';
+            case 'Cancelled':
+                return isDarkMode
+                    ? 'bg-red-400/10 text-red-400'
+                    : 'bg-red-100 text-red-700';
+            default:
+                return isDarkMode
+                    ? 'bg-gray-400/10 text-gray-400'
+                    : 'bg-gray-100 text-gray-700';
+        }
+    };
 
     return (
         <div className={`flex min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -412,57 +481,84 @@ export default function AdminDashboard() {
                                 </div>
 
                                 {/* Upcoming Appointments - Below Total Cards */}
-                                <div className={`p-6 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg`}>
-                                    <h3 className={`text-xl font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                                <div className={`p-6 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg h-[300px]`}>
+                                    <h3 className={`text-xl font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-black'}`}>
                                         Upcoming Appointments
                                     </h3>
-                                    <div className="overflow-x-auto">
+                                    <div className={`flex items-center px-4 py-2 rounded-lg mb-2 ${
+                                        isDarkMode ? 'bg-gray-700/70 text-gray-300' : 'bg-gray-200/70 text-gray-700'
+                                    } font-medium`}>
+                                        <span className="w-[30%]">Doctor</span>
+                                        <span className="w-[30%]">Patient Name</span>
+                                        <span className="w-[20%]">Time</span>
+                                        <span className="w-[20%]">Status</span>
+                                    </div>
+                                    <div className="overflow-y-auto h-[180px] scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent">
                                         <table className="min-w-full">
-                                            <thead>
-                                                <tr className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                    <th className="pb-3 text-left w-[30%]">
-                                                        <div className="pl-4">Doctor</div>
-                                                    </th>
-                                                    <th className="pb-3 text-left w-[30%]">
-                                                        <div className="pl-4">Patient Name</div>
-                                                    </th>
-                                                    <th className="pb-3 text-left w-[20%]">
-                                                        <div className="pl-4">Time</div>
-                                                    </th>
-                                                    <th className="pb-3 text-left w-[20%]">
-                                                        <div className="pl-4">Status</div>
-                                                    </th>
-                                                </tr>
-                                            </thead>
                                             <tbody className="divide-y divide-gray-200">
-                                                {[
-                                                    { patient: "Alice Smith", doctor: "Dr. Sarah Johnson", time: "09:00 AM", status: "On Going" },
-                                                    { patient: "Bob Wilson", doctor: "Dr. Michael Chen", time: "10:30 AM", status: "Booked" },
-                                                    { patient: "Carol Davis", doctor: "Dr. Emily Brown", time: "02:00 PM", status: "Completed" }
-                                                ].map((appointment, index) => (
-                                                    <tr key={index} className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>
-                                                        <td className="py-3 w-[30%]">{appointment.doctor}</td>
-                                                        <td className="py-3 w-[30%]">{appointment.patient}</td>
-                                                        <td className="py-3 w-[20%]">{appointment.time}</td>
-                                                        <td className="py-3 w-[20%]">
-                                                            <span className={`inline-block w-24 text-center px-2 py-1 rounded-full text-xs font-medium ${
-                                                                appointment.status === 'Completed'
-                                                                    ? isDarkMode 
-                                                                        ? 'bg-green-400/10 text-green-400'
-                                                                        : 'bg-green-100 text-green-700'
-                                                                    : appointment.status === 'On Going'
-                                                                        ? isDarkMode
-                                                                            ? 'bg-blue-400/10 text-blue-400'
-                                                                            : 'bg-blue-100 text-blue-700'
-                                                                        : isDarkMode
-                                                                            ? 'bg-yellow-400/10 text-yellow-400'
-                                                                            : 'bg-yellow-100 text-yellow-700'
-                                                            }`}>
-                                                                {appointment.status}
-                                                            </span>
+                                                {isLoadingAppointments ? (
+                                                    <tr>
+                                                        <td colSpan={4} className="py-4 text-center">
+                                                            <div className="flex justify-center">
+                                                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-pink-600"></div>
+                                                            </div>
                                                         </td>
                                                     </tr>
-                                                ))}
+                                                ) : appointments.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={4} className="py-4 text-center text-gray-500">
+                                                            No appointments found
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    [...appointments]
+                                                        .filter(appointment => {
+                                                            // Get today's date in YYYY-MM-DD format
+                                                            const today = new Date();
+                                                            const todayFormatted = today.toISOString().split('T')[0];
+                                                            
+                                                            // Get appointment date in YYYY-MM-DD format
+                                                            const appointmentDate = new Date(appointment.dateRange.startDate);
+                                                            const appointmentDateFormatted = appointmentDate.toISOString().split('T')[0];
+                                                            
+                                                            // Only include appointments for today
+                                                            return appointmentDateFormatted === todayFormatted;
+                                                        })
+                                                        .sort((a, b) => {
+                                                            // Define status priority (only for Booked and Ongoing)
+                                                            const statusPriority: Record<string, number> = {
+                                                                'Booked': 1,
+                                                                'Ongoing': 0,
+                                                                'Completed': 2,
+                                                                'Cancelled': 2,
+                                                                'Rescheduled': 2
+                                                            };
+                                                            
+                                                            // First compare by status priority
+                                                            const statusComparison = statusPriority[a.status] - statusPriority[b.status];
+                                                            
+                                                            // If status is the same, then compare by time
+                                                            if (statusComparison === 0) {
+                                                                return a.timeSlot.startTime.localeCompare(b.timeSlot.startTime);
+                                                            }
+                                                            
+                                                            return statusComparison;
+                                                        })
+                                                        .map((appointment) => (
+                                                            <tr key={appointment._id} className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>
+                                                                <td className="py-2 w-[30%]">{appointment.doctorName}</td>
+                                                                <td className="py-2 w-[30%] pl-4">{appointment.patientName}</td>
+                                                                <td className="py-2 w-[20%]">
+                                                                    {formatTime(appointment.timeSlot.startTime)}
+                                                                </td>
+                                                                <td className="py-2 w-[20%]">
+                                                                    <span className={`inline-block w-20 text-center px-2 py-1 rounded-full text-xs font-medium ${getStatusStyle(appointment.status)}`}>
+                                                                        {appointment.status}
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        ))
+                                                )}
                                             </tbody>
                                         </table>
                                     </div>
@@ -548,7 +644,7 @@ export default function AdminDashboard() {
                         <div className="grid grid-cols-1 gap-6 mt-6">
                             <div className={`p-6 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg`}>
                                 <h3 className={`text-xl font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-black'}`}>
-                                    Visited Patients
+                                    Appointment Statistics
                                 </h3>
                                 <div className="h-[300px] flex flex-col">
                                     <div className="flex-1 flex items-end space-x-6 pl-12 pr-4 relative">
@@ -568,43 +664,55 @@ export default function AdminDashboard() {
                                                 <div key={value} className={`w-full h-px ${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-200/50'}`}></div>
                                             ))}
                                         </div>
-                                        {[
-                                            { month: 'Jan', count: 120 },
-                                            { month: 'Feb', count: 150 },
-                                            { month: 'Mar', count: 180 },
-                                            { month: 'Apr', count: 140 },
-                                            { month: 'May', count: 160 },
-                                            { month: 'Jun', count: 190 },
-                                            { month: 'Jul', count: 170 },
-                                            { month: 'Aug', count: 200 },
-                                            { month: 'Sep', count: 220 },
-                                            { month: 'Oct', count: 190 },
-                                            { month: 'Nov', count: 230 },
-                                            { month: 'Dec', count: 210 }
-                                        ].map((data, index) => (
-                                            <div key={index} className="flex flex-col items-center flex-1">
-                                                <div className="relative w-full flex justify-center">
-                                                    <div 
-                                                        className={`w-12 ${isDarkMode ? 'bg-purple-400/20' : 'bg-purple-100'} rounded-t-lg relative group hover:opacity-80 transition-opacity cursor-pointer`}
-                                                        style={{ height: `${(data.count / 250) * 250}px` }}
-                                                    >
-                                                        <div className={`absolute -top-8 left-1/2 transform -translate-x-1/2 px-2 py-1 rounded text-xs ${
-                                                            isDarkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-700 text-white'
-                                                        } opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap`}>
-                                                            {data.count} patients
+                                        {(() => {
+                                            // Get current year
+                                            const currentYear = new Date().getFullYear();
+                                            
+                                            // Initialize monthly counts
+                                            const monthlyCounts = Array(12).fill(0).map((_, i) => ({
+                                                month: new Date(0, i).toLocaleString('default', { month: 'short' }),
+                                                count: 0
+                                            }));
+                                            
+                                            // Count appointments by month, excluding cancelled and rescheduled
+                                            appointments.forEach(appointment => {
+                                                const appointmentDate = new Date(appointment.dateRange.startDate);
+                                                // Only count appointments that are not cancelled or rescheduled
+                                                if (appointmentDate.getFullYear() === currentYear && 
+                                                    appointment.status !== 'Cancelled' && 
+                                                    appointment.status !== 'Rescheduled') {
+                                                    monthlyCounts[appointmentDate.getMonth()].count++;
+                                                }
+                                            });
+                                            
+                                            // Find max count for scaling
+                                            const maxCount = Math.max(...monthlyCounts.map(m => m.count), 1);
+                                            
+                                            return monthlyCounts.map((data, index) => (
+                                                <div key={index} className="flex flex-col items-center flex-1">
+                                                    <div className="relative w-full flex justify-center">
+                                                        <div 
+                                                            className={`w-12 ${isDarkMode ? 'bg-purple-400/20' : 'bg-purple-100'} rounded-t-lg relative group hover:opacity-80 transition-opacity cursor-pointer`}
+                                                            style={{ height: `${(data.count / maxCount) * 250}px` }}
+                                                        >
+                                                            <div className={`absolute -top-8 left-1/2 transform -translate-x-1/2 px-2 py-1 rounded text-xs ${
+                                                                isDarkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-700 text-white'
+                                                            } opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap`}>
+                                                                {data.count} appointments
+                                                            </div>
+                                                            <div className={`absolute inset-0 ${
+                                                                isDarkMode ? 'bg-purple-400/40' : 'bg-purple-500/40'
+                                                            } rounded-t-lg`}></div>
                                                         </div>
-                                                        <div className={`absolute inset-0 ${
-                                                            isDarkMode ? 'bg-purple-400/40' : 'bg-purple-500/40'
-                                                        } rounded-t-lg`}></div>
                                                     </div>
+                                                    <span className={`mt-2 text-sm ${
+                                                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                                                    }`}>
+                                                        {data.month}
+                                                    </span>
                                                 </div>
-                                                <span className={`mt-2 text-sm ${
-                                                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                                                }`}>
-                                                    {data.month}
-                                                </span>
-                                            </div>
-                                        ))}
+                                            ));
+                                        })()}
                                     </div>
                                     <div className={`h-px mt-2 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
                                 </div>

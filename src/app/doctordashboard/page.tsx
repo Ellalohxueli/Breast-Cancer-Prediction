@@ -38,6 +38,14 @@ interface BookedAppointment {
     status: string;
 }
 
+interface Review {
+    _id: string;
+    name: string;
+    date: string;
+    rating: number;
+    comment: string;
+}
+
 export default function DoctorDashboard() {
     const router = useRouter();
     const pathname = usePathname();
@@ -85,6 +93,10 @@ export default function DoctorDashboard() {
     const [excludedPatients, setExcludedPatients] = useState(0);
     const [isMedicalPassModalOpen, setIsMedicalPassModalOpen] = useState(false);
     const [selectedPatientForVisit, setSelectedPatientForVisit] = useState<BookedAppointment | null>(null);
+    const [reviews, setReviews] = useState<Review[]>([]);
+    const [averageRating, setAverageRating] = useState(0);
+    const [isLoadingReviews, setIsLoadingReviews] = useState(false);
+    const [reviewError, setReviewError] = useState<string | null>(null);
 
     // Check Cookies Token
     useCheckCookies();
@@ -156,8 +168,10 @@ export default function DoctorDashboard() {
             return appointmentDate.toDateString() === today.toDateString();
         });
 
-        // Count appointments with 'Booked' or 'Ongoing' status for total
-        const total = todayAppointments.filter(app => app.status === 'Booked' || app.status === 'Ongoing').length;
+        // Count all appointments for today, excluding 'Cancelled' and 'Rescheduled'
+        const total = todayAppointments.filter(app => 
+            app.status !== 'Cancelled' && app.status !== 'Rescheduled'
+        ).length;
         const completed = todayAppointments.filter(app => app.status === 'Completed').length;
         const remaining = todayAppointments.filter(app => app.status === 'Booked' || app.status === 'Ongoing').length;
 
@@ -201,6 +215,28 @@ export default function DoctorDashboard() {
         };
 
         fetchTodayAppointments();
+    }, []);
+
+    // Add new useEffect for fetching reviews
+    useEffect(() => {
+        const fetchReviews = async () => {
+            setIsLoadingReviews(true);
+            setReviewError(null);
+            try {
+                const response = await axios.get('/api/doctors/reviews');
+                if (response.data.success) {
+                    setReviews(response.data.reviews);
+                    setAverageRating(response.data.averageRating);
+                }
+            } catch (error: any) {
+                console.error('Error fetching reviews:', error);
+                setReviewError(error.response?.data?.error || 'Failed to load reviews');
+            } finally {
+                setIsLoadingReviews(false);
+            }
+        };
+
+        fetchReviews();
     }, []);
 
     const toggleTheme = () => {
@@ -506,29 +542,34 @@ export default function DoctorDashboard() {
 
     // Update the getNextAppointment function
     const getNextAppointment = (appointments: BookedAppointment[]) => {
-        return appointments
+        const nextAppointment = appointments
             .filter((appointment: BookedAppointment) => {
-                // Filter appointments that are:
-                // 1. Not cancelled
-                // 2. Not completed
-                // 3. Not rescheduled
-                // 4. Are Booked/Upcoming/Ongoing
                 return (appointment.status === 'Booked' || 
                        appointment.status === 'Ongoing' ||
                        getAppointmentStatus(appointment.status).text === 'Upcoming');
             })
             .sort((a: BookedAppointment, b: BookedAppointment): number => {
-                // Prioritize ongoing appointments
                 if (a.status === 'Ongoing' && b.status !== 'Ongoing') return -1;
                 if (a.status !== 'Ongoing' && b.status === 'Ongoing') return 1;
                 
-                // Then sort by time for appointments with the same status
                 const aTime = new Date(a.dateRange.startDate);
                 const bTime = new Date(b.dateRange.startDate);
                 aTime.setHours(parseInt(a.timeSlot.startTime.split(':')[0]), parseInt(a.timeSlot.startTime.split(':')[1]));
                 bTime.setHours(parseInt(b.timeSlot.startTime.split(':')[0]), parseInt(b.timeSlot.startTime.split(':')[1]));
                 return aTime.getTime() - bTime.getTime();
             })[0];
+
+        // Add console logging
+        console.log('Next Patient Appointment Status:', nextAppointment?.status || 'No upcoming appointments');
+        console.log('Doctor Status:', currentStatus);
+
+        // If there are no ongoing appointments, ensure doctor status is "Active"
+        const hasOngoingAppointment = appointments.some(app => app.status === 'Ongoing');
+        if (!hasOngoingAppointment && currentStatus === 'Busy') {
+            updateDoctorStatus('Active');
+        }
+
+        return nextAppointment;
     };
 
     // Add this helper function after your state declarations
@@ -660,6 +701,9 @@ export default function DoctorDashboard() {
                     )
                 );
 
+                // Update doctor status to "Busy"
+                await updateDoctorStatus('Busy');
+
                 // Open medical pass modal
                 setSelectedPatientForVisit(appointment);
                 setIsMedicalPassModalOpen(true);
@@ -667,6 +711,58 @@ export default function DoctorDashboard() {
         } catch (error: any) {
             console.error('Error updating appointment status:', error);
             toast.error(error.response?.data?.error || 'Failed to update appointment status');
+        }
+    };
+
+    // Add new function to handle doctor status updates
+    const updateDoctorStatus = async (newStatus: string) => {
+        try {
+            const formData = new FormData();
+            formData.append('status', newStatus);
+            
+            const response = await axios.put('/api/doctors/profile', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+
+            if (response.data.success) {
+                setCurrentStatus(newStatus);
+                setDoctorProfile(prev => ({
+                    ...prev,
+                    status: newStatus
+                }));
+            }
+        } catch (error) {
+            console.error('Error updating doctor status:', error);
+            toast.error('Failed to update doctor status');
+        }
+    };
+
+    // Add new function to handle appointment completion
+    const handleCompleteAppointment = async (appointment: BookedAppointment) => {
+        try {
+            // Update appointment status to "Completed"
+            const response = await axios.put(`/api/doctors/appointment/${appointment._id}/complete`);
+
+            if (response.data.success) {
+                // Update local state
+                setTodayAppointments(prevAppointments => 
+                    prevAppointments.map(app => 
+                        app._id === appointment._id 
+                            ? { ...app, status: 'Completed' }
+                            : app
+                    )
+                );
+
+                // Update doctor status back to "Active"
+                await updateDoctorStatus('Active');
+
+                toast.success('Appointment completed successfully');
+            }
+        } catch (error: any) {
+            console.error('Error completing appointment:', error);
+            toast.error(error.response?.data?.error || 'Failed to complete appointment');
         }
     };
 
@@ -709,7 +805,7 @@ export default function DoctorDashboard() {
                                     href: "/doctordashboard/appointments", 
                                     icon: <FiCalendar className="w-5 h-5 mr-4" />, 
                                     text: "Appointments",
-                                    badge: todayStats.total
+                                    badge: todayStats.remaining > 0 ? todayStats.remaining : undefined
                                 },
                                 { href: "/doctordashboard/patients", icon: <FiUsers className="w-5 h-5 mr-4" />, text: "Patients" },
                                 { 
@@ -904,14 +1000,11 @@ export default function DoctorDashboard() {
                             <div className={`p-6 rounded-xl shadow-sm ${
                                 isDarkMode ? 'bg-gray-800' : 'bg-white'
                             }`}>
-                                <div className="flex justify-between items-start mb-4">
+                                <div className="flex justify-between items-start mb-2">
                                     <div>
                                         <h3 className={`text-sm font-medium ${
                                             isDarkMode ? 'text-gray-400' : 'text-gray-500'
                                         }`}>Total Patients</h3>
-                                        <p className={`text-2xl font-bold mt-1 ${
-                                            isDarkMode ? 'text-white' : 'text-gray-900'
-                                        }`}>{totalPatients - (excludedPatients || 0)}</p>
                                     </div>
                                     <div className={`p-3 rounded-lg ${
                                         isDarkMode ? 'bg-gray-700' : 'bg-pink-100'
@@ -921,19 +1014,9 @@ export default function DoctorDashboard() {
                                         }`} />
                                     </div>
                                 </div>
-                                <div className="flex items-center space-x-2">
-                                    {isLoadingAppointments ? (
-                                        <span className={`text-sm ${
-                                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                        }`}>Loading...</span>
-                                    ) : (
-                                        <>
-                                            <span className={`text-sm ${
-                                                isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                            }`}>for this year</span>
-                                        </>
-                                    )}
-                                </div>
+                                <p className={`text-4xl font-bold -mt-3 ${
+                                    isDarkMode ? 'text-white' : 'text-gray-900'
+                                }`}>{totalPatients - (excludedPatients || 0)}</p>
                             </div>
 
                             {/* Today's Appointments Card */}
@@ -977,29 +1060,18 @@ export default function DoctorDashboard() {
                                         <h3 className={`text-sm font-medium ${
                                             isDarkMode ? 'text-gray-400' : 'text-gray-500'
                                         }`}>Average Review Score</h3>
-                                        <p className={`text-2xl font-bold mt-1 ${
-                                            isDarkMode ? 'text-white' : 'text-gray-900'
-                                        }`}>4.8</p>
                                     </div>
                                     <div className="flex -space-x-1">
                                         {[...Array(5)].map((_, index) => (
-                                            <svg key={index} className={`w-5 h-5 ${index < 4 ? 'text-yellow-400' : 'text-yellow-200'}`} fill="currentColor" viewBox="0 0 20 20">
+                                            <svg key={index} className={`w-5 h-5 ${index < Math.round(averageRating) ? 'text-pink-500' : 'text-pink-200'}`} fill="currentColor" viewBox="0 0 20 20">
                                                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                                             </svg>
                                         ))}
                                     </div>
                                 </div>
-                                <div className="flex items-center">
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                                        </svg>
-                                        0.3
-                                    </span>
-                                    <span className={`ml-2 text-sm ${
-                                        isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                                    }`}>vs last month</span>
-                                </div>
+                                <p className={`text-4xl font-bold ${
+                                    isDarkMode ? 'text-white' : 'text-gray-900'
+                                }`}>{averageRating}</p>
                             </div>
                         </div>
 
@@ -1248,10 +1320,10 @@ export default function DoctorDashboard() {
                                                 Patient Reviews
                                             </h2>
                                             <div className="flex items-center space-x-2">
-                                                <span className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>4.8</span>
+                                                <span className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{averageRating}</span>
                                                 <div className="flex -space-x-1">
                                                     {[...Array(5)].map((_, index) => (
-                                                        <svg key={index} className={`w-5 h-5 ${index < 4 ? 'text-yellow-400' : 'text-yellow-200'}`} fill="currentColor" viewBox="0 0 20 20">
+                                                        <svg key={index} className={`w-5 h-5 ${index < Math.round(averageRating) ? 'text-pink-500' : 'text-pink-200'}`} fill="currentColor" viewBox="0 0 20 20">
                                                             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                                                         </svg>
                                                     ))}
@@ -1261,59 +1333,51 @@ export default function DoctorDashboard() {
 
                                         {/* Reviews List */}
                                         <div className="space-y-4 h-[300px] overflow-y-auto pr-2">
-                                            {[
-                                                {
-                                                    name: "Sarah Johnson",
-                                                    date: "Mar 10, 2024",
-                                                    rating: 5,
-                                                    comment: "Dr. Garcia was very thorough and caring. She took the time to explain everything clearly and answer all my questions."
-                                                },
-                                                {
-                                                    name: "Emma Davis",
-                                                    date: "Mar 8, 2024",
-                                                    rating: 5,
-                                                    comment: "Excellent care and attention to detail. Very professional and compassionate."
-                                                },
-                                                {
-                                                    name: "Lisa Wilson",
-                                                    date: "Mar 5, 2024",
-                                                    rating: 4,
-                                                    comment: "Very knowledgeable and patient. Made me feel comfortable throughout the consultation."
-                                                }
-                                            ].map((review, index) => (
-                                                <div key={index} className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                                                    <div className="flex justify-between items-start mb-2">
-                                                        <div>
-                                                            <h4 className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                                                {review.name}
-                                                            </h4>
-                                                            <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                                {review.date}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex">
-                                                            {[...Array(5)].map((_, i) => (
-                                                                <svg 
-                                                                    key={i} 
-                                                                    className={`w-4 h-4 ${i < review.rating ? 'text-yellow-400' : 'text-gray-300'}`} 
-                                                                    fill="currentColor" 
-                                                                    viewBox="0 0 20 20"
-                                                                >
-                                                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                                                </svg>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                    <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                                                        {review.comment}
-                                                    </p>
-                                                    <button className={`mt-2 text-xs font-medium ${
-                                                        isDarkMode ? 'text-pink-400 hover:text-pink-300' : 'text-pink-600 hover:text-pink-700'
-                                                    } transition-colors`}>
-                                                        Respond to review
-                                                    </button>
+                                            {isLoadingReviews ? (
+                                                <div className="flex justify-center items-center h-40">
+                                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-600"></div>
                                                 </div>
-                                            ))}
+                                            ) : reviewError ? (
+                                                <div className="text-center text-red-600 h-40 flex items-center justify-center">
+                                                    <p>{reviewError}</p>
+                                                </div>
+                                            ) : reviews.length === 0 ? (
+                                                <div className="text-center h-40 flex items-center justify-center">
+                                                    <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                        No reviews yet
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                reviews.map((review) => (
+                                                    <div key={review._id} className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                                        <div className="flex justify-between items-start mb-2">
+                                                            <div>
+                                                                <h4 className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                                                    {review.name}
+                                                                </h4>
+                                                                <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                                    {review.date}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex">
+                                                                {[...Array(5)].map((_, i) => (
+                                                                    <svg 
+                                                                        key={i} 
+                                                                        className={`w-4 h-4 ${i < review.rating ? 'text-yellow-400' : 'text-gray-300'}`} 
+                                                                        fill="currentColor" 
+                                                                        viewBox="0 0 20 20"
+                                                                    >
+                                                                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                                                    </svg>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                        <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                                            {review.comment}
+                                                        </p>
+                                                    </div>
+                                                ))
+                                            )}
                                         </div>
                                     </div>
                                 </div>

@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import Image from 'next/image';
+import React from 'react';
 import { FiHome, FiUsers, FiCalendar, FiSettings, FiFileText, FiUserPlus, FiSun, FiMoon, FiBell, FiSearch, FiMessageCircle, FiChevronDown, FiChevronRight } from 'react-icons/fi';
 import { FaUserDoctor } from 'react-icons/fa6';
 import { useState, useEffect } from 'react';
@@ -395,11 +396,10 @@ export default function AppointmentsPage() {
                                 value={selectedDoctor}
                                 onChange={(e) => setSelectedDoctor(e.target.value)}
                             >
-                                <option value="" disabled>Filter by Doctor</option>
-                                <option value="">All</option>
-                                {!isLoadingDoctors && doctors && doctors.map((doctor) => (
+                                <option value="">All Doctors</option>
+                                {doctors.map((doctor) => (
                                     <option key={doctor._id} value={doctor.name}>
-                                        {doctor.name} {doctor.specialization ? `(${doctor.specialization})` : ''}
+                                        {doctor.name}
                                     </option>
                                 ))}
                             </select>
@@ -426,12 +426,12 @@ export default function AppointmentsPage() {
                                 value={selectedStatus}
                                 onChange={(e) => setSelectedStatus(e.target.value)}
                             >
-                                <option value="" disabled>Filter by Status</option>
-                                <option value="">All</option>
+                                <option value="">All Statuses</option>
+                                <option value="Ongoing">Ongoing</option>
                                 <option value="Booked">Booked</option>
                                 <option value="Completed">Completed</option>
                                 <option value="Cancelled">Cancelled</option>
-                                <option value="Upcoming">Upcoming</option>
+                                <option value="Rescheduled">Rescheduled</option>
                             </select>
                         </div>
                     </div>
@@ -480,53 +480,117 @@ export default function AppointmentsPage() {
                                             isDarkMode ? 'bg-gray-800' : 'bg-white'
                                         } divide-y divide-gray-200`}>
                                             {filteredAppointments.length > 0 ? (
-                                                filteredAppointments.map((appointment) => (
-                                                    <tr key={appointment._id}>
-                                                        <td className={`px-4 py-4 whitespace-nowrap ${
-                                                            isDarkMode ? 'text-gray-200' : 'text-gray-900'
-                                                        }`}>
-                                                            <div className="flex items-center">
-                                                                <div className="w-8 h-8 rounded-full bg-pink-200 flex items-center justify-center mr-3">
-                                                                    <span className={`text-sm font-medium ${
-                                                                        isDarkMode ? 'text-gray-800' : 'text-pink-800'
+                                                (() => {
+                                                    // Group appointments by date
+                                                    const groupedAppointments = filteredAppointments.reduce((groups, appointment) => {
+                                                        const date = new Date(appointment.dateRange.startDate);
+                                                        const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+                                                        
+                                                        if (!groups[dateKey]) {
+                                                            groups[dateKey] = [];
+                                                        }
+                                                        
+                                                        groups[dateKey].push(appointment);
+                                                        return groups;
+                                                    }, {} as Record<string, typeof filteredAppointments>);
+                                                    
+                                                    // Sort dates in ascending order
+                                                    const sortedDates = Object.keys(groupedAppointments).sort();
+                                                    
+                                                    return sortedDates.map(dateKey => {
+                                                        const appointmentsForDate = groupedAppointments[dateKey];
+                                                        const date = new Date(dateKey);
+                                                        const formattedDate = date.toLocaleDateString('en-US', {
+                                                            weekday: 'long',
+                                                            year: 'numeric',
+                                                            month: 'long',
+                                                            day: 'numeric'
+                                                        });
+                                                        
+                                                        // Sort appointments within each date group
+                                                        const sortedAppointments = [...appointmentsForDate].sort((a, b) => {
+                                                            // Define status priority
+                                                            const statusPriority: Record<string, number> = {
+                                                                'Booked': 1,
+                                                                'Ongoing': 0,
+                                                                'Completed': 2,
+                                                                'Cancelled': 2,
+                                                                'Rescheduled': 2
+                                                            };
+                                                            
+                                                            // First compare by status priority
+                                                            const statusComparison = statusPriority[a.status] - statusPriority[b.status];
+                                                            
+                                                            // If status is the same, then compare by time
+                                                            if (statusComparison === 0) {
+                                                                return a.timeSlot.startTime.localeCompare(b.timeSlot.startTime);
+                                                            }
+                                                            
+                                                            return statusComparison;
+                                                        });
+                                                        
+                                                        return (
+                                                            <React.Fragment key={dateKey}>
+                                                                {/* Date Header */}
+                                                                <tr className={`${
+                                                                    isDarkMode ? 'bg-gray-700' : 'bg-gray-100'
+                                                                }`}>
+                                                                    <td colSpan={5} className={`px-4 py-2 font-medium ${
+                                                                        isDarkMode ? 'text-gray-200' : 'text-gray-700'
                                                                     }`}>
-                                                                        {appointment.patientName.charAt(0)}
-                                                                    </span>
-                                                                </div>
-                                                                {appointment.patientName}
-                                                            </div>
-                                                        </td>
-                                                        <td className={`px-4 py-4 whitespace-nowrap ${
-                                                            isDarkMode ? 'text-gray-200' : 'text-gray-900'
-                                                        }`}>
-                                                            {appointment.doctorName}
-                                                        </td>
-                                                        <td className={`px-4 py-4 whitespace-nowrap ${
-                                                            isDarkMode ? 'text-gray-200' : 'text-gray-900'
-                                                        }`}>
-                                                            {appointment.dateTime}
-                                                            <br />
-                                                            <span className="text-sm text-gray-500">
-                                                                {appointment.formattedTime}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-4 py-4 whitespace-nowrap">
-                                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                                                                ${appointment.status === 'Booked' ? 'bg-green-100 text-green-800' : ''}
-                                                                ${appointment.status === 'Upcoming' ? 'bg-blue-100 text-blue-800' : ''}
-                                                                ${appointment.status === 'Completed' ? 'bg-gray-100 text-gray-800' : ''}
-                                                                ${appointment.status === 'Cancelled' ? 'bg-red-100 text-red-800' : ''}
-                                                            `}>
-                                                                {appointment.status}
-                                                            </span>
-                                                        </td>
-                                                        <td className={`px-4 py-4 ${
-                                                            isDarkMode ? 'text-gray-200' : 'text-gray-900'
-                                                        }`}>
-                                                            {appointment.reason}
-                                                        </td>
-                                                    </tr>
-                                                ))
+                                                                        {formattedDate}
+                                                                    </td>
+                                                                </tr>
+                                                                
+                                                                {/* Appointments for this date */}
+                                                                {sortedAppointments.map((appointment) => (
+                                                                    <tr key={appointment._id}>
+                                                                        <td className={`px-4 py-4 whitespace-nowrap ${
+                                                                            isDarkMode ? 'text-gray-200' : 'text-gray-900'
+                                                                        }`}>
+                                                                            <div className="flex items-center">
+                                                                                <div className="w-8 h-8 rounded-full bg-pink-200 flex items-center justify-center mr-3">
+                                                                                    <span className={`text-sm font-medium ${
+                                                                                        isDarkMode ? 'text-gray-800' : 'text-pink-800'
+                                                                                    }`}>
+                                                                                        {appointment.patientName.charAt(0)}
+                                                                                    </span>
+                                                                                </div>
+                                                                                {appointment.patientName}
+                                                                            </div>
+                                                                        </td>
+                                                                        <td className={`px-4 py-4 whitespace-nowrap ${
+                                                                            isDarkMode ? 'text-gray-200' : 'text-gray-900'
+                                                                        }`}>
+                                                                            {appointment.doctorName}
+                                                                        </td>
+                                                                        <td className={`px-4 py-4 whitespace-nowrap ${
+                                                                            isDarkMode ? 'text-gray-200' : 'text-gray-900'
+                                                                        }`}>
+                                                                            {appointment.formattedTime}
+                                                                        </td>
+                                                                        <td className="px-4 py-4 whitespace-nowrap">
+                                                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                                                                ${appointment.status === 'Booked' ? 'bg-yellow-100 text-yellow-700' : ''}
+                                                                                ${appointment.status === 'Ongoing' ? 'bg-blue-100 text-blue-700' : ''}
+                                                                                ${appointment.status === 'Completed' ? 'bg-green-100 text-green-700' : ''}
+                                                                                ${appointment.status === 'Cancelled' ? 'bg-red-100 text-red-700' : ''}
+                                                                                ${appointment.status === 'Rescheduled' ? 'bg-gray-100 text-gray-700' : ''}
+                                                                            `}>
+                                                                                {appointment.status}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className={`px-4 py-4 ${
+                                                                            isDarkMode ? 'text-gray-200' : 'text-gray-900'
+                                                                        }`}>
+                                                                            {appointment.reason}
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </React.Fragment>
+                                                        );
+                                                    });
+                                                })()
                                             ) : (
                                                 <tr>
                                                     <td 

@@ -125,7 +125,7 @@ export default function AppointmentsPage() {
     const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
     const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
     const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
-    const [todayStats, setTodayStats] = useState({ total: 0 });
+    const [todayStats, setTodayStats] = useState({ total: 0, remaining: 0 });
 
     // Add this useEffect to fetch today's appointments
     useEffect(() => {
@@ -141,9 +141,17 @@ export default function AppointmentsPage() {
                         return appointmentDate.toDateString() === today.toDateString();
                     });
                     
-                    // Only count appointments with 'Booked' status for total
-                    const total = todayAppointments.filter((app: Appointment) => app.status === 'Booked').length;
-                    setTodayStats({ total });
+                    // Count all appointments for today, excluding 'Cancelled' and 'Rescheduled'
+                    const total = todayAppointments.filter((app: Appointment) => 
+                        app.status !== 'Cancelled' && app.status !== 'Rescheduled'
+                    ).length;
+                    
+                    // Count remaining appointments (Booked or Ongoing)
+                    const remaining = todayAppointments.filter((app: Appointment) => 
+                        app.status === 'Booked' || app.status === 'Ongoing'
+                    ).length;
+                    
+                    setTodayStats({ total, remaining });
                 }
             } catch (error) {
                 console.error('Error fetching today\'s appointments:', error);
@@ -1227,7 +1235,7 @@ export default function AppointmentsPage() {
                                     href: "/doctordashboard/appointments", 
                                     icon: <FiCalendar className="w-5 h-5 mr-4" />, 
                                     text: "Appointments",
-                                    badge: todayStats.total
+                                    badge: todayStats.remaining > 0 ? todayStats.remaining : undefined
                                 },
                                 { href: "/doctordashboard/patients", icon: <FiUsers className="w-5 h-5 mr-4" />, text: "Patients" },
                                 { 
@@ -2462,14 +2470,7 @@ export default function AppointmentsPage() {
                                             ? 'bg-pink-500 hover:bg-pink-600 text-white'
                                             : 'bg-pink-600 hover:bg-pink-700 text-white'
                                     }`}>
-                                        {selectedAppointment.status === 'Completed' ? 'Report' : 'Start Consultation'}
-                                    </button>
-                                    <button className={`p-2 rounded-lg transition-colors ${
-                                        isDarkMode
-                                            ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-                                            : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                                    }`}>
-                                        <FiMoreVertical className="w-5 h-5" />
+                                        {selectedAppointment.status === 'Completed' ? 'Report' : 'Visit'}
                                     </button>
                                 </div>
                             </div>

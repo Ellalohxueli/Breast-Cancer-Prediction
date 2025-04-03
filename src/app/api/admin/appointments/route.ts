@@ -8,11 +8,15 @@ export async function GET(request: NextRequest) {
     try {
         await connectToMongoDB();
 
-        // Get all active doctors
+        // Get all doctors regardless of status
         const doctors = await Doctor.find(
-            { status: 'Active' },
+            {},
             'name specialization'
         ).sort({ name: 1 });
+        
+        // Log the total number of doctors
+        console.log(`Total doctors in database: ${doctors.length}`);
+        console.log('Doctor names:', doctors.map(doctor => doctor.name));
 
         // Get all booked appointments with populated doctor and patient data
         const appointments = await BookedAppointment.find()

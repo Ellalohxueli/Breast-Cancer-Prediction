@@ -65,6 +65,7 @@ export async function GET(req: Request) {
                     timeSlot: 1,
                     status: 1,
                     appointmentType: 1,
+                    reviews: 1,
                     doctor: {
                         _id: "$doctor._id",
                         name: "$doctor.name",

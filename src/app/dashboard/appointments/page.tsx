@@ -4,11 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Poppins } from 'next/font/google';
-import { FaRegBell, FaRegUser, FaCalendar, FaClock } from 'react-icons/fa';
+import { FaRegBell, FaRegUser, FaCalendar, FaClock, FaStar } from 'react-icons/fa';
 import { BiMessageRounded } from 'react-icons/bi';
 import Link from 'next/link';
 import useCheckCookies from '@/controller/UseCheckCookie';
 import axios from 'axios';
+import { toast } from 'react-hot-toast';
 
 const poppins = Poppins({
     weight: ['400', '500', '600', '700'],
@@ -38,6 +39,11 @@ interface BookedAppointment {
     status: 'Booked' | 'Upcoming' | 'Completed' | 'Cancelled' | 'Rescheduled';
     appointmentType: 'Consultation' | 'Follow-up';
     doctor?: Doctor;
+    reviews?: {
+        rating: number;
+        review: string;
+        createdAt: Date;
+    }[];
 }
 
 type NotificationData = {
@@ -111,6 +117,16 @@ export default function AppointmentsPage() {
     const [notificationError, setNotificationError] = useState<string | null>(null);
     const [selectedNotification, setSelectedNotification] = useState<NotificationData | null>(null);
     const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+    const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+    const [selectedAppointment, setSelectedAppointment] = useState<BookedAppointment | null>(null);
+    const [rating, setRating] = useState(0);
+    const [reviewComment, setReviewComment] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [reviewErrors, setReviewErrors] = useState<{
+        rating?: string;
+        reviewComment?: string;
+    }>({});
+    const [reviewSuccessMessage, setReviewSuccessMessage] = useState(false);
 
     useCheckCookies();
 
@@ -533,6 +549,94 @@ export default function AppointmentsPage() {
     const handleCloseModal = () => {
         setSelectedNotification(null);
         setIsNotificationModalOpen(false);
+    };
+
+    const handleReviewClick = (appointment: BookedAppointment) => {
+        console.log('Selected appointment for review:', appointment);
+        console.log('Current reviews:', appointment.reviews);
+        console.log('Reviews array type:', Array.isArray(appointment.reviews));
+        console.log('Reviews array length:', appointment.reviews?.length);
+
+        // Check if a review already exists
+        if (appointment.reviews && appointment.reviews.length > 0) {
+            toast.error('You have already submitted a review for this appointment.');
+            return;
+        }
+
+        setSelectedAppointment(appointment);
+        setIsReviewModalOpen(true);
+    };
+
+    const handleReviewSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        // Clear previous errors
+        setReviewErrors({});
+        
+        // Validate inputs
+        const newErrors: { rating?: string; reviewComment?: string } = {};
+        if (!rating) {
+            newErrors.rating = 'Please select a rating';
+        }
+        if (!reviewComment.trim()) {
+            newErrors.reviewComment = 'Please provide a review comment';
+        }
+        
+        if (Object.keys(newErrors).length > 0) {
+            setReviewErrors(newErrors);
+            return;
+        }
+
+        if (!selectedAppointment) return;
+
+        setIsSubmitting(true);
+        try {
+            const response = await axios.post('/api/appointments/reviews', {
+                appointmentId: selectedAppointment._id,
+                rating,
+                reviewComment
+            });
+
+            if (response.data.success) {
+                // Update the appointment in the cancelledAppointments state
+                setCancelledAppointments(prevAppointments => 
+                    prevAppointments.map(apt => 
+                        apt._id === selectedAppointment._id 
+                            ? {
+                                ...apt,
+                                reviews: [{
+                                    rating,
+                                    review: reviewComment,
+                                    createdAt: new Date()
+                                }]
+                            }
+                            : apt
+                    )
+                );
+
+                setReviewSuccessMessage(true);
+                setTimeout(() => {
+                    setReviewSuccessMessage(false);
+                    setIsReviewModalOpen(false);
+                    setRating(0);
+                    setReviewComment('');
+                    setSelectedAppointment(null);
+                }, 2000);
+            }
+        } catch (error: any) {
+            console.error('Error submitting review:', error);
+            if (error.response?.data?.error) {
+                setReviewErrors({
+                    reviewComment: error.response.data.error
+                });
+            } else {
+                setReviewErrors({
+                    reviewComment: 'Failed to submit review. Please try again.'
+                });
+            }
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -968,12 +1072,19 @@ export default function AppointmentsPage() {
                                                             >
                                                                 View Report
                                                             </button>
-                                                            <button 
-                                                                onClick={() => router.push(`/dashboard/review/${appointment._id}`)}
-                                                                className="px-4 py-2.5 text-sm font-medium text-green-600 border border-green-600 rounded-md hover:bg-green-50 transition-colors"
-                                                            >
-                                                                Review
-                                                            </button>
+                                                            {(!appointment.reviews || appointment.reviews.length === 0) && (
+                                                                <button 
+                                                                    onClick={() => handleReviewClick(appointment)}
+                                                                    className="px-4 py-2.5 text-sm font-medium text-green-600 border border-green-600 rounded-md hover:bg-green-50 transition-colors"
+                                                                >
+                                                                    Review
+                                                                </button>
+                                                            )}
+                                                            {appointment.reviews && appointment.reviews.length > 0 && (
+                                                                <div className="px-4 py-2.5 text-sm font-medium text-gray-600 border border-gray-300 rounded-md bg-gray-50">
+                                                                    Review
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
@@ -1362,6 +1473,104 @@ export default function AppointmentsPage() {
                                 </button>
                             )}
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Review Modal */}
+            {isReviewModalOpen && selectedAppointment && (
+                <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
+                    <div className="bg-white/95 rounded-lg p-8 w-full max-w-2xl relative shadow-xl backdrop-blur-sm border border-gray-200">
+                        <h2 className="text-2xl font-bold mb-6 text-gray-800">
+                            Review Your Appointment
+                        </h2>
+                        <p className="text-gray-600 mb-8">
+                            Share your experience with {selectedAppointment.doctor?.name || 'Doctor Name Not Available'}
+                        </p>
+
+                        <form onSubmit={handleReviewSubmit} className="space-y-6">
+                            {/* Rating */}
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-3">
+                                    Your Rating
+                                </label>
+                                <div className="flex gap-2">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                        <button
+                                            key={star}
+                                            type="button"
+                                            onClick={() => {
+                                                setRating(star);
+                                                setReviewErrors(prev => ({ ...prev, rating: undefined }));
+                                            }}
+                                            className={`${
+                                                star <= rating ? 'text-pink-500' : 'text-gray-300'
+                                            } hover:text-pink-500 focus:text-pink-500 text-2xl focus:outline-none transition-colors`}
+                                        >
+                                            <FaStar />
+                                        </button>
+                                    ))}
+                                </div>
+                                {reviewErrors.rating && (
+                                    <p className="mt-1 text-sm text-red-500">{reviewErrors.rating}</p>
+                                )}
+                            </div>
+
+                            {/* Review Comment */}
+                            <div>
+                                <label htmlFor="review" className="block text-gray-700 font-medium mb-3">
+                                    Your Review
+                                </label>
+                                <textarea
+                                    id="review"
+                                    rows={4}
+                                    value={reviewComment}
+                                    onChange={(e) => {
+                                        setReviewComment(e.target.value);
+                                        setReviewErrors(prev => ({ ...prev, reviewComment: undefined }));
+                                    }}
+                                    className={`w-full px-4 py-3 rounded-md border ${
+                                        reviewErrors.reviewComment ? 'border-red-500' : 'border-gray-300'
+                                    } focus:border-pink-500 focus:ring-1 focus:ring-pink-500 resize-none placeholder-gray-400 text-black`}
+                                    placeholder="Share your experience with us..."
+                                ></textarea>
+                                {reviewErrors.reviewComment && (
+                                    <p className="mt-1 text-sm text-red-500">{reviewErrors.reviewComment}</p>
+                                )}
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex justify-end space-x-4">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsReviewModalOpen(false);
+                                        setSelectedAppointment(null);
+                                        setRating(0);
+                                        setReviewComment('');
+                                    }}
+                                    className="px-6 py-2.5 rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 font-medium"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className={`px-6 py-2.5 bg-pink-600 text-white rounded-lg hover:bg-pink-700 font-medium transition-colors ${
+                                        isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+                                    }`}
+                                >
+                                    {isSubmitting ? 'Submitting...' : 'Submit Review'}
+                                </button>
+                            </div>
+                        </form>
+
+                        {/* Success Message */}
+                        {reviewSuccessMessage && (
+                            <div className="absolute top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg">
+                                Review submitted successfully!
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

@@ -44,6 +44,22 @@ const BookedAppointmentSchema = new mongoose.Schema(
             enum: ["Consultation", "Follow-up"],
             required: true
         },
+        reviews: [{
+            rating: {
+                type: Number,
+                min: 1,
+                max: 5,
+                required: true
+            },
+            review: {
+                type: String,
+                required: true
+            },
+            createdAt: {
+                type: Date,
+                default: Date.now
+            }
+        }],
         createdAt: {
             type: Date,
             default: Date.now,
