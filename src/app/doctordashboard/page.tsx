@@ -10,6 +10,7 @@ import { FiHome, FiCalendar, FiUsers, FiMessageSquare, FiFileText, FiLogOut, FiG
 import useCheckCookies from '@/controller/UseCheckCookie';
 import { FaRegUser } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
+import UseRemoveLocalStorage from '@/controller/UseRemoveLocalStorage';
 
 const poppins = Poppins({
     weight: ['400', '500', '600', '700'],
@@ -190,7 +191,6 @@ export default function DoctorDashboard() {
             try {
                 const response = await axios.get('/api/doctors/appointment');
                 if (response.data.success) {
-                    console.log('Appointments data:', response.data.appointments);
                     setTodayAppointments(response.data.appointments);
                     
                     // Calculate today's appointment stats
@@ -246,20 +246,21 @@ export default function DoctorDashboard() {
     const handleLogout = async () => {
         try {
             await axios.get('/api/users/logout');
-            // Clear all stored user data
-            localStorage.removeItem('name');
-            localStorage.removeItem('image');
-            localStorage.removeItem('userType');
-            sessionStorage.removeItem('token');
-            // Redirect to login page
+            
+            UseRemoveLocalStorage();
+            
             router.push('/login');
         } catch (error: any) {
-            console.log(error.message);
-            // Clear data and redirect even if API call fails
-            localStorage.removeItem('name');
-            localStorage.removeItem('image');
-            localStorage.removeItem('userType');
+            localStorage.removeItem("firstname");
+            localStorage.removeItem("userId");
+    
+            localStorage.removeItem("doctorId");
+            localStorage.removeItem("name");
+            localStorage.removeItem("image");
             sessionStorage.removeItem('token');
+    
+            localStorage.removeItem("userType");
+
             router.push('/login');
         }
     };
@@ -582,9 +583,6 @@ export default function DoctorDashboard() {
 
     const handleCancelAppointment = async (appointment: BookedAppointment) => {
         try {
-            // Log the appointment data for debugging
-            console.log('Full appointment data:', appointment);
-
             // Create the notification with all required data
             const notificationData = {
                 appointmentId: appointment._id,
@@ -595,17 +593,12 @@ export default function DoctorDashboard() {
                 status: 'cancelled'
             };
 
-            // Log the data being sent to notification API
-            console.log('Sending to notification API:', notificationData);
-
             try {
                 const response = await axios.post('/api/notifications', notificationData, {
                     headers: {
                         'Content-Type': 'application/json'
                     }
                 });
-
-                console.log('API Response:', response.data);
 
                 if (response.data.success) {
                     toast.success('Appointment cancelled successfully');

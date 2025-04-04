@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
 import Link from "next/link";
 import Image from "next/image";
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
-import { Poppins } from 'next/font/google';
+import { Poppins } from "next/font/google";
 
 const poppins = Poppins({
-    weight: ['400', '500', '600', '700'],
-    subsets: ['latin'],
+    weight: ["400", "500", "600", "700"],
+    subsets: ["latin"],
 });
 
 export default function LoginPage() {
@@ -27,7 +27,7 @@ export default function LoginPage() {
 
         if (!user.email.trim()) {
             newErrors.email = "Email is required";
-        } else if (!user.email.includes('@')) {
+        } else if (!user.email.includes("@")) {
             newErrors.email = "Please enter a valid email address";
         }
         if (!user.password) {
@@ -50,32 +50,34 @@ export default function LoginPage() {
             setLoading(true);
             // Try doctor login first
             try {
-                const doctorResponse = await axios.post('/api/doctors/login', user);
+                const doctorResponse = await axios.post("/api/doctors/login", user);
 
-                localStorage.setItem('doctorId', doctorResponse.data._id);
-                localStorage.setItem('name', doctorResponse.data.name);
-                localStorage.setItem('image', doctorResponse.data.image);
-                localStorage.setItem('userType', 'doctor');
-                router.push('/doctordashboard');
+                localStorage.setItem("doctorId", doctorResponse.data.id);
+                localStorage.setItem("name", doctorResponse.data.name);
+                localStorage.setItem("image", doctorResponse.data.image);
+                localStorage.setItem("userType", "doctor");
+                router.push("/doctordashboard");
                 return;
             } catch (doctorError) {
                 // If doctor login fails, try regular user login
-                const response = await axios.post('/api/users/login', user);
+                const response = await axios.post("/api/users/login", user);
 
-                localStorage.setItem('firstname', response.data.firstname);
-                localStorage.setItem('userId', response.data.userId);
-                
+                localStorage.setItem("firstname", response.data.firstname);
+                localStorage.setItem("userId", response.data.userId);
+
                 // Check user role and redirect accordingly
                 const userRole = response.data.role;
-                if (userRole === 'admin') {
-                    router.push('/admindashboard');
+                if (userRole === "admin") {
+                    localStorage.setItem("userType", "admin");
+                    router.push("/admindashboard");
                 } else {
-                    router.push('/dashboard');
+                    localStorage.setItem("userType", "user");
+                    router.push("/dashboard");
                 }
             }
         } catch (error: any) {
-            setErrors({ 
-                submit: error.response?.data?.error || "Invalid email or password"
+            setErrors({
+                submit: error.response?.data?.error || "Invalid email or password",
             });
         } finally {
             setLoading(false);
@@ -83,7 +85,7 @@ export default function LoginPage() {
     };
 
     const clearError = (field: string) => {
-        setErrors(prev => {
+        setErrors((prev) => {
             const newErrors = { ...prev };
             delete newErrors[field];
             return newErrors;
@@ -96,27 +98,14 @@ export default function LoginPage() {
                 <div className="bg-white rounded-lg shadow-lg overflow-visible">
                     <div className="relative bg-white px-6 pt-12 pb-8">
                         <div className="absolute left-1/2 transform -translate-x-1/2 -top-12">
-                            <div className="bg-white rounded-xl shadow-lg flex items-center justify-center" style={{ width: '90px', height: '90px' }}>
-                                <Image
-                                    src="/logo.png"
-                                    alt="Breast Cancer Detection Logo"
-                                    width={110}
-                                    height={110}
-                                    priority
-                                    className="w-auto h-auto object-contain"
-                                />
+                            <div className="bg-white rounded-xl shadow-lg flex items-center justify-center" style={{ width: "90px", height: "90px" }}>
+                                <Image src="/logo.png" alt="Breast Cancer Detection Logo" width={110} height={110} priority className="w-auto h-auto object-contain" />
                             </div>
                         </div>
-                        
-                        <h2 className="text-center text-3xl font-extrabold text-pink-800 mt-6 mb-6">
-                            LOGIN
-                        </h2>
 
-                        {errors.submit && (
-                            <div className="mb-4 p-3 bg-red-50 text-red-500 text-sm rounded-md">
-                                {errors.submit}
-                            </div>
-                        )}
+                        <h2 className="text-center text-3xl font-extrabold text-pink-800 mt-6 mb-6">LOGIN</h2>
+
+                        {errors.submit && <div className="mb-4 p-3 bg-red-50 text-red-500 text-sm rounded-md">{errors.submit}</div>}
 
                         <form onSubmit={onLogin} className="space-y-6">
                             <div>
@@ -128,20 +117,16 @@ export default function LoginPage() {
                                     type="email"
                                     required
                                     className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                                        errors.email 
-                                        ? 'border-red-500 focus:border-red-500 focus:ring-red-500' 
-                                        : 'border-transparent focus:border-pink-500 focus:ring-pink-500'
+                                        errors.email ? "border-red-500 focus:border-red-500 focus:ring-red-500" : "border-transparent focus:border-pink-500 focus:ring-pink-500"
                                     } bg-[#fff0f7] text-gray-600 placeholder-gray-400`}
                                     placeholder="you@example.com"
                                     value={user.email}
                                     onChange={(e) => {
                                         setUser({ ...user, email: e.target.value });
-                                        clearError('email');
+                                        clearError("email");
                                     }}
                                 />
-                                {errors.email && (
-                                    <p className="mt-1 text-sm text-red-500">{errors.email}</p>
-                                )}
+                                {errors.email && <p className="mt-1 text-sm text-red-500">{errors.email}</p>}
                             </div>
 
                             <div>
@@ -153,20 +138,16 @@ export default function LoginPage() {
                                     type="password"
                                     required
                                     className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                                        errors.password 
-                                        ? 'border-red-500 focus:border-red-500 focus:ring-red-500' 
-                                        : 'border-transparent focus:border-pink-500 focus:ring-pink-500'
+                                        errors.password ? "border-red-500 focus:border-red-500 focus:ring-red-500" : "border-transparent focus:border-pink-500 focus:ring-pink-500"
                                     } bg-[#fff0f7] text-gray-600 placeholder-gray-400`}
                                     placeholder="••••••••"
                                     value={user.password}
                                     onChange={(e) => {
                                         setUser({ ...user, password: e.target.value });
-                                        clearError('password');
+                                        clearError("password");
                                     }}
                                 />
-                                {errors.password && (
-                                    <p className="mt-1 text-sm text-red-500">{errors.password}</p>
-                                )}
+                                {errors.password && <p className="mt-1 text-sm text-red-500">{errors.password}</p>}
                             </div>
 
                             <div>
@@ -186,9 +167,7 @@ export default function LoginPage() {
                                     <div className="w-full border-t border-pink-200"></div>
                                 </div>
                                 <div className="relative flex justify-center text-sm">
-                                    <span className="px-2 bg-white text-pink-600">
-                                        Don't have an account?
-                                    </span>
+                                    <span className="px-2 bg-white text-pink-600">Don't have an account?</span>
                                 </div>
                             </div>
 

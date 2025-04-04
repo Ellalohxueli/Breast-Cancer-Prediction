@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
             message: "Login successful",
             success: true,
             role: 'doctor',
+            id: doctor._id,
             name: doctor.name,
             image: doctor.image || '',
             token: token
