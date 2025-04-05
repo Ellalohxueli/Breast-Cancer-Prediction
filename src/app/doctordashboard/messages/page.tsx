@@ -211,7 +211,7 @@ export default function Messages() {
 
                                     {/* User's Last Message */}
                                     {channel.id !== selectedChannel?.id && (
-                                        <div className="flex-shrink-0 text-sm text-gray-500 mr-auto">
+                                        <div className="flex gap-6 text-sm text-gray-500 mr-auto w-full justify-between">
                                             {userLastMessage(channel)}
                                             {!channel.data.isDoctorRead && <span className="bg-pink-500 text-white px-2 py-1 rounded-full">New</span>}
                                         </div>
