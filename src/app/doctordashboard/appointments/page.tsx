@@ -24,6 +24,7 @@ import {
 } from "react-icons/fi";
 import useCheckCookies from "@/controller/UseCheckCookie";
 import { FaRegUser } from "react-icons/fa";
+import { toast } from "react-hot-toast";
 import DoctorNavBar from "@/components/DoctorNavBar";
 
 const poppins = Poppins({
@@ -127,6 +128,8 @@ export default function AppointmentsPage() {
     const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
     const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
     const [todayStats, setTodayStats] = useState({ total: 0, remaining: 0 });
+    const [isMedicalPassModalOpen, setIsMedicalPassModalOpen] = useState(false);
+    const [selectedPatientForVisit, setSelectedPatientForVisit] = useState<Appointment | null>(null);
 
     // Add this useEffect to fetch today's appointments
     useEffect(() => {
@@ -1209,6 +1212,66 @@ export default function AppointmentsPage() {
     const handleClosePatientModal = () => {
         setSelectedAppointment(null);
         setIsPatientModalOpen(false);
+    };
+
+    // Add new function to handle doctor status updates
+    const updateDoctorStatus = async (newStatus: string) => {
+        try {
+            const formData = new FormData();
+            formData.append('status', newStatus);
+            
+            const response = await axios.put('/api/doctors/profile', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+
+            if (response.data.success) {
+                setCurrentStatus(newStatus);
+                setDoctorProfile(prev => ({
+                    ...prev,
+                    status: newStatus
+                }));
+            }
+        } catch (error) {
+            console.error('Error updating doctor status:', error);
+            toast.error('Failed to update doctor status');
+        }
+    };
+
+    // Add function to handle visit button click
+    const handleVisitClick = async (appointment: Appointment) => {
+        try {
+            // Update appointment status to "Ongoing"
+            const response = await axios.put(`/api/doctors/appointment/${appointment._id}`);
+
+            if (response.data.success) {
+                // Update local state
+                setAllAppointments(prevAppointments => 
+                    prevAppointments.map(app => 
+                        app._id === appointment._id 
+                            ? { ...app, status: 'Ongoing' }
+                            : app
+                    )
+                );
+
+                // Update doctor status to "Busy"
+                await updateDoctorStatus('Busy');
+
+                // Open medical pass modal
+                setSelectedPatientForVisit(appointment);
+                setIsMedicalPassModalOpen(true);
+            }
+        } catch (error: any) {
+            console.error('Error updating appointment status:', error);
+            toast.error(error.response?.data?.error || 'Failed to update appointment status');
+        }
+    };
+
+    // Add function to close medical pass modal
+    const handleCloseMedicalPassModal = () => {
+        setSelectedPatientForVisit(null);
+        setIsMedicalPassModalOpen(false);
     };
 
     return (
@@ -2394,14 +2457,171 @@ export default function AppointmentsPage() {
 
                                 {/* Action Buttons */}
                                 <div className="flex items-center space-x-4">
-                                    <button className={`flex-grow px-8 py-2 rounded-lg font-medium text-sm transition-colors ${
-                                        isDarkMode
-                                            ? 'bg-pink-500 hover:bg-pink-600 text-white'
-                                            : 'bg-pink-600 hover:bg-pink-700 text-white'
-                                    }`}>
-                                        {selectedAppointment.status === 'Completed' ? 'Report' : 'Visit'}
+                                    <button 
+                                        onClick={() => handleVisitClick(selectedAppointment)}
+                                        className={`flex-grow px-8 py-2 rounded-lg font-medium text-sm transition-colors ${
+                                            isDarkMode
+                                                ? 'bg-pink-500 hover:bg-pink-600 text-white'
+                                                : 'bg-pink-600 hover:bg-pink-700 text-white'
+                                        }`}
+                                    >
+                                        {selectedAppointment.status === 'Completed' ? 'Report' : 
+                                         selectedAppointment.status === 'Ongoing' ? 'Continue' : 'Visit'}
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Medical Pass Modal */}
+            {isMedicalPassModalOpen && selectedPatientForVisit && (
+                <div className="fixed inset-0 z-50">
+                    {/* Backdrop */}
+                    <div 
+                        className="absolute inset-0 bg-black/30 backdrop-blur-sm" 
+                        onClick={handleCloseMedicalPassModal} 
+                    />
+
+                    {/* Modal */}
+                    <div className="absolute inset-0 flex items-center justify-center p-4">
+                        <div className={`w-full max-w-2xl rounded-xl shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'} max-h-[85vh] overflow-hidden flex flex-col`}>
+                            {/* Modal Header */}
+                            <div className={`p-4 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                                <div className="flex justify-between items-center">
+                                    <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                        Patient Medical Pass
+                                    </h2>
+                                    <button 
+                                        onClick={handleCloseMedicalPassModal}
+                                        className={`p-2 rounded-lg transition-colors ${
+                                            isDarkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
+                                        }`}
+                                    >
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Modal Content */}
+                            <div className="p-6 overflow-y-auto">
+                                {/* Patient Info */}
+                                <div className="mb-6">
+                                    <div className="flex items-center space-x-4 mb-4">
+                                        <div className="w-16 h-16 rounded-full bg-pink-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                                            {selectedPatientForVisit.patient?.image ? (
+                                                <Image 
+                                                    src={selectedPatientForVisit.patient.image}
+                                                    alt={`${selectedPatientForVisit.patient.firstname} ${selectedPatientForVisit.patient.lastname}`}
+                                                    width={64}
+                                                    height={64}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <span className={`text-xl font-medium ${isDarkMode ? 'text-gray-800' : 'text-pink-800'}`}>
+                                                    {selectedPatientForVisit.patient?.firstname?.charAt(0)}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <h3 className={`text-lg font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                                {`${selectedPatientForVisit.patient?.firstname} ${selectedPatientForVisit.patient?.lastname}`}
+                                            </h3>
+                                            <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                Age: {calculateAge(selectedPatientForVisit.patient?.dob)} years old
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Medical History */}
+                                <div className="mb-6">
+                                    <h3 className={`text-lg font-medium mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                        Medical History
+                                    </h3>
+                                    <div className={`space-y-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                        <div className="flex justify-between items-center">
+                                            <span>Last Visit</span>
+                                            <span>March 15, 2024</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span>Blood Type</span>
+                                            <span>O+</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span>Allergies</span>
+                                            <span>None</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span>Chronic Conditions</span>
+                                            <span>None</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Recent Medications */}
+                                <div className="mb-6">
+                                    <h3 className={`text-lg font-medium mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                        Recent Medications
+                                    </h3>
+                                    <div className={`space-y-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                        <div className="flex justify-between items-center">
+                                            <span>Vitamin D</span>
+                                            <span>1000 IU daily</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span>Calcium</span>
+                                            <span>500mg daily</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Recent Test Results */}
+                                <div className="mb-6">
+                                    <h3 className={`text-lg font-medium mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                        Recent Test Results
+                                    </h3>
+                                    <div className={`space-y-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                        <div className="flex justify-between items-center">
+                                            <span>Mammogram</span>
+                                            <span>Normal (March 1, 2024)</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span>Blood Pressure</span>
+                                            <span>120/80 (March 15, 2024)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Modal Footer */}
+                            <div className={`p-4 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} flex justify-end space-x-3`}>
+                                <button
+                                    onClick={handleCloseMedicalPassModal}
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                                        isDarkMode
+                                            ? 'bg-gray-700 hover:bg-gray-600 text-white'
+                                            : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                                    }`}
+                                >
+                                    Close
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        handleCloseMedicalPassModal();
+                                        router.push(`/doctordashboard/consultation/${selectedPatientForVisit._id}`);
+                                    }}
+                                    className={`px-4 py-2 rounded-lg ${
+                                        isDarkMode 
+                                            ? 'bg-pink-500 hover:bg-pink-600 text-white' 
+                                            : 'bg-pink-600 hover:bg-pink-700 text-white'
+                                    }`}
+                                >
+                                    New Consultation
+                                </button>
                             </div>
                         </div>
                     </div>
