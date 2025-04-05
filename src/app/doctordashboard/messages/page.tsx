@@ -28,6 +28,7 @@ export default function Messages() {
     const [userRole, setUserRole] = useState<"doctor" | "user">("user");
     const [channelsUserData, setChannelsUserData] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [chatName, setChatName] = useState("");
 
     const loadChatClient = async () => {
         const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY;
@@ -42,7 +43,7 @@ export default function Messages() {
         const username = localStorage.getItem("name")?.replace(/[\s.]+/g, "_") || "defaultUser";
 
         const user = {
-            id: username,
+            id: username + '_Doctor',
             role: userRole,
         };
 
@@ -65,6 +66,7 @@ export default function Messages() {
 
         const filteredChannels = channels
             .filter((channel: any) => channel.id.includes(doctorId))
+            .filter((channel: any) => !channel.id.includes("admin"))
             .filter((channel: any) => channel.state.messages && channel.state.messages.length > 0);
 
         setUserChannelIds(filteredChannels.map((channel: any) => channel.id));
@@ -103,7 +105,7 @@ export default function Messages() {
         });
     }, [doctorId]);
 
-    const handleChannelSelection = async (channel: any) => {
+    const handleChannelSelection = async (channel: any, dex: any) => {
         setIsLoading(false);
 
         try {
@@ -115,6 +117,7 @@ export default function Messages() {
 
             if (updatedChannel) {
                 setSelectedChannel(updatedChannel);
+                setChatName(channelsUserData[dex]?.userData?.firstname + " " + channelsUserData[dex]?.userData?.lastname);
             }
         } catch (error) {
             console.error("Error updating channel:", error);
@@ -130,6 +133,7 @@ export default function Messages() {
             if (selectedChannel) {
                 await selectedChannel.delete();
                 setSelectedChannel(null);
+                setChatName("");
                 fetchChannels(chatClient);
                 toast.success("Channel deleted successfully");
             } else {
@@ -172,10 +176,41 @@ export default function Messages() {
             if (chatClient) {
                 fetchChannels(chatClient);
             }
-        }, 5000);
+        }, 20000);
 
         return () => clearInterval(interval);
     }, [chatClient]);
+
+    const handleAdminChannel = async () => {
+        toast.dismiss();
+
+        const adminChannelId = `${doctorId}-admin`;
+        const filter = { id: adminChannelId };
+        const sort = [{ last_message_at: -1 }];
+
+        setIsLoading(false);
+
+        try {
+            const channels = await chatClient.queryChannels(filter, sort, {});
+
+            if (channels.length > 0) {
+                setSelectedChannel(channels[0]);
+            } else {
+                const adminChannel = chatClient.channel("messaging", adminChannelId, {
+                    isAdminRead: false,
+                    isDoctorRead: true,
+                });
+
+                await adminChannel.create();
+                await adminChannel.watch();
+
+                setSelectedChannel(adminChannel);
+            }
+            setChatName("Admin");
+        } catch (error) {
+            toast.error("Error selecting admin channel");
+        }
+    };
 
     return (
         <div className={`min-h-screen bg-gray-50 ${poppins.className}`}>
@@ -185,10 +220,30 @@ export default function Messages() {
                 <div className="w-2/5 bg-white p-4 border-r h-full overflow-y-auto">
                     <h2 className="text-xl font-semibold">Messages</h2>
                     <ul className="space-y-2">
+                        {/* Render admin channel button */}
+                        <li className="flex space-x-4 mt-5">
+                            <Button
+                                onClick={() => handleAdminChannel()}
+                                className={`flex flex-col w-full text-left bg-white text-black p-3 rounded-md hover:bg-blue-300 shadow-ring hover:shadow-md transition duration-200 ease-in-out 
+                                    ${selectedChannel?.id === `${doctorId}-admin` ? "bg-gray-300" : "h-[50px]"}
+                                `}
+                            >
+                                <div className="flex items-center gap-5 text-[16px]">
+                                    <div className="flex-grow text-left">
+                                        <span>Chat with Admin</span>
+                                    </div>
+                                    <div className="flex-shrink-0 text-sm text-gray-500">
+                                        <span>Support</span>
+                                    </div>
+                                </div>
+                            </Button>
+                        </li>
+
+                        {/* Render channels */}
                         {channels.map((channel, index) => (
                             <li key={index} className="flex space-x-4 mt-5">
                                 <Button
-                                    onClick={() => handleChannelSelection(channel)}
+                                    onClick={() => handleChannelSelection(channel, index)}
                                     className={`flex flex-col w-full text-left bg-white text-black p-3 rounded-md hover:bg-pink-300 shadow-ring hover:shadow-md transition duration-200 ease-in-out 
                                         ${channel.id === selectedChannel?.id ? "bg-gray-300" : ""}
                                         ${channel.id !== selectedChannel?.id ? "h-[100px]" : "h-[50px]"}
@@ -228,7 +283,7 @@ export default function Messages() {
                         <div className="flex flex-col h-full">
                             <div className="flex items-center justify-between border-b border-gray-200 pb-2">
                                 <div className="flex items-center space-x-4">
-                                    <h3 className="text-lg font-semibold text-gray-900">{selectedChannel.data.created_by.id}</h3>
+                                    <h3 className="text-lg font-semibold text-gray-900">{chatName}</h3>
                                 </div>
 
                                 <div className="flex items-center gap-4">
@@ -240,6 +295,8 @@ export default function Messages() {
                                         variant="outline"
                                         onClick={() => {
                                             setSelectedChannel(null);
+                                            setChatName("");
+                                            setMessageText("");
                                         }}
                                         className="bg-red-500 text-white hover:bg-red-600"
                                     >

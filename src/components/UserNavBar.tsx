@@ -97,7 +97,8 @@ export default function NavBar() {
 
         const filteredChannels = channels
             .filter((channel: any) => channel.id.includes(userId))
-            .filter((channel: any) => channel.state.messages && channel.state.messages.length > 0);
+            .filter((channel: any) => channel.state.messages && channel.state.messages.length > 0)
+            .filter((channel: any) => !channel.id.includes('admin'));
 
         const doctorsData = await Promise.all(
             filteredChannels.map(async (channel: any) => {
@@ -169,7 +170,7 @@ export default function NavBar() {
                         <ul className="flex items-center justify-end space-x-6">
                             <li>
                                 <Link href="/dashboard" className={`font-medium ${currentPath === "/dashboard" ? "text-pink-600" : "text-gray-600"} hover:text-pink-600`}>
-                                    HHHome
+                                    Home
                                 </Link>
                             </li>
                             <li>

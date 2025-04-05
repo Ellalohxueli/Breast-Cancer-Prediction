@@ -71,6 +71,7 @@ export default function DoctorNavBar() {
 
         const filteredChannels = channels
             .filter((channel: any) => channel.id.includes(doctorId))
+            .filter((channel: any) => !channel.id.includes('admin'))
             .filter((channel: any) => channel.state.messages && channel.state.messages.length > 0);
 
         setUserChannelIds(filteredChannels.map((channel: any) => channel.id));
