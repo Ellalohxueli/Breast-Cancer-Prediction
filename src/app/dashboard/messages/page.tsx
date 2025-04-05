@@ -191,6 +191,7 @@ export default function Messages() {
                                     className={`flex flex-col w-full text-left bg-white text-black p-3 pt-0 rounded-md hover:bg-pink-300 shadow-ring hover:shadow-md transition duration-200 ease-in-out 
                                         ${channel.id === selectedChannel?.id ? "bg-gray-300" : ""}
                                         ${channel.id !== selectedChannel?.id ? "h-[120px]" : "h-[90px]"}
+                                        ${channel.id !== selectedChannel?.id && "pt-0"}
                                     `}
                                 >
                                     <div className="flex items-center w-full h-full gap-5 text-[16px]">
