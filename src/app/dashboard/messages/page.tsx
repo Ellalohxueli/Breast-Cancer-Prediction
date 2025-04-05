@@ -188,7 +188,7 @@ export default function Messages() {
                             <li key={index} className="flex space-x-4 mt-5">
                                 <Button
                                     onClick={() => handleChannelSelection(channel)}
-                                    className={`flex flex-col w-full text-left bg-white text-black p-3 pt-0 rounded-md hover:bg-pink-300 shadow-ring hover:shadow-md transition duration-200 ease-in-out 
+                                    className={`flex flex-col w-full text-left bg-white text-black p-3 rounded-md hover:bg-pink-300 shadow-ring hover:shadow-md transition duration-200 ease-in-out 
                                         ${channel.id === selectedChannel?.id ? "bg-gray-300" : ""}
                                         ${channel.id !== selectedChannel?.id ? "h-[120px]" : "h-[90px]"}
                                         ${channel.id !== selectedChannel?.id && "pt-0"}
