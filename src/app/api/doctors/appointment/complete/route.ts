@@ -45,13 +45,6 @@ export async function PUT(req: Request) {
             }, { status: 404 });
         }
 
-        console.log('Updated appointment:', {
-            id: updatedAppointment._id,
-            status: updatedAppointment.status,
-            updatedAt: updatedAppointment.updatedAt,
-            malaysiaTime: malaysiaTime
-        });
-
         return NextResponse.json({ 
             success: true, 
             appointment: updatedAppointment 

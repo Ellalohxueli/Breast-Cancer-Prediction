@@ -5,12 +5,13 @@ import { StreamChat } from "stream-chat";
 import { DevToken } from "stream-chat";
 import { Button } from "@/components/ui/button";
 import { Poppins } from "next/font/google";
-import DoctorNavBar from "@/components/DoctorNavBar";
 import { Trash2, X } from "lucide-react";
 import { FaRegUser } from "react-icons/fa";
 import LiveChat from "@/components/LiveChat";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import NavBar from "@/components/UserNavBar";
+import Image from "next/image";
 
 const poppins = Poppins({
     weight: ["400", "500", "600", "700"],
@@ -24,10 +25,10 @@ export default function Messages() {
     const [chatClient, setChatClient] = useState<any>(null);
     const [messageText, setMessageText] = useState("");
     const [userChannelIds, setUserChannelIds] = useState<string[]>([]);
-    const [doctorId, setDoctorId] = useState<string>("");
     const [userRole, setUserRole] = useState<"doctor" | "user">("user");
-    const [channelsUserData, setChannelsUserData] = useState<any[]>([]);
+    const [channelsDoctorData, setChannelsDoctorData] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [userId, setUserId] = useState<string>("");
 
     const loadChatClient = async () => {
         const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY;
@@ -39,7 +40,7 @@ export default function Messages() {
             enableWSFallback: true,
         });
 
-        const username = localStorage.getItem("name")?.replace(/[\s.]+/g, "_") || "defaultUser";
+        const username = localStorage.getItem("firstname")?.replace(/[\s.]+/g, "_") || "defaultUser";
 
         const user = {
             id: username,
@@ -64,50 +65,49 @@ export default function Messages() {
         const channels = await client.queryChannels(filter, sort, {});
 
         const filteredChannels = channels
-            .filter((channel: any) => channel.id.includes(doctorId))
+            .filter((channel: any) => channel.id.includes(userId))
             .filter((channel: any) => channel.state.messages && channel.state.messages.length > 0);
 
         setUserChannelIds(filteredChannels.map((channel: any) => channel.id));
 
-        const usersData = await Promise.all(
+        const doctorsData = await Promise.all(
             filteredChannels.map(async (channel: any) => {
-                const userId = channel.id.split("-")[1];
+                const doctorId = channel.id.split("-")[0];
 
-                const response = await fetch(`/api/users/${userId}`);
+                const response = await fetch(`/api/doctors/${doctorId}`);
 
                 if (!response.ok) {
                     throw new Error("Failed to fetch user data");
                 }
 
-                const userData = await response.json();
+                const doctorData = await response.json();
 
                 return {
-                    userData: userData.userData[0],
+                    doctorData: doctorData.doctorData[0],
                 };
             })
         );
 
-        setChannelsUserData(usersData);
+        setChannelsDoctorData(doctorsData);
 
         setChannels(filteredChannels);
     };
 
     useEffect(() => {
-        const storedDoctorId = localStorage.getItem("doctorId");
-        setDoctorId(storedDoctorId || "");
+        setUserId(localStorage.getItem("userId") || "");
 
         const channelClient = loadChatClient();
 
         channelClient.then((client) => {
             fetchChannels(client);
         });
-    }, [doctorId]);
+    }, [userId]);
 
     const handleChannelSelection = async (channel: any) => {
         setIsLoading(false);
 
         try {
-            await channel.updatePartial({ set: { isDoctorRead: true } });
+            await channel.updatePartial({ set: { isUserRead: true } });
 
             fetchChannels(chatClient);
 
@@ -117,7 +117,7 @@ export default function Messages() {
                 setSelectedChannel(updatedChannel);
             }
         } catch (error) {
-            console.error("Error updating channel:", error);
+            toast.error("Error selecting the channel");
         }
     };
 
@@ -136,7 +136,6 @@ export default function Messages() {
                 toast.error("Channel not found");
             }
         } catch (error) {
-            console.error("Error deleting the channel:", error);
             toast.error("Error deleting the channel");
         }
     };
@@ -162,7 +161,7 @@ export default function Messages() {
 
         return (
             <div className="flex-shrink-0 text-sm text-gray-500">
-                {lastMessageSender === channel.data.created_by.id ? <span>{lastMessageText}</span> : <span>You: {lastMessageText}</span>}
+                {lastMessageSender === channel.data.created_by.id ? <span>You: {lastMessageText}</span> : <span>{lastMessageText}</span>}
             </div>
         );
     };
@@ -179,9 +178,9 @@ export default function Messages() {
 
     return (
         <div className={`min-h-screen bg-gray-50 ${poppins.className}`}>
-            <DoctorNavBar />
+            <NavBar />
 
-            <div className="flex h-[100vh] ml-64">
+            <div className="flex h-[93vh]">
                 <div className="w-2/5 bg-white p-4 border-r h-full overflow-y-auto">
                     <h2 className="text-xl font-semibold">Messages</h2>
                     <ul className="space-y-2">
@@ -189,17 +188,27 @@ export default function Messages() {
                             <li key={index} className="flex space-x-4 mt-5">
                                 <Button
                                     onClick={() => handleChannelSelection(channel)}
-                                    className={`flex flex-col h-[100px] w-full text-left bg-white text-black p-3 pt-0 rounded-md hover:bg-pink-300 shadow-ring hover:shadow-md transition duration-200 ease-in-out ${
-                                        channel.id === selectedChannel?.id ? "bg-gray-300" : ""
-                                    }`}
+                                    className={`flex flex-col h-[120px] w-full text-left bg-white text-black p-3 pt-0 rounded-md hover:bg-pink-300 shadow-ring hover:shadow-md transition duration-200 ease-in-out 
+                                        ${channel.id === selectedChannel?.id ? "bg-gray-300" : ""}
+                                    `}
                                 >
                                     <div className="flex items-center w-full h-full gap-5 text-[16px]">
                                         <div className="flex-shrink-0">
-                                            <FaRegUser className="w-24 h-24 rounded-full" />
+                                            {channelsDoctorData[index]?.doctorData?.image ? (
+                                                <Image
+                                                    src={channelsDoctorData[index]?.doctorData?.image}
+                                                    alt="Doctor Profile"
+                                                    width={60}
+                                                    height={60}
+                                                    className="w-16 h-16 rounded-full object-cover"
+                                                />
+                                            ) : (
+                                                <FaRegUser className="w-24 h-24 rounded-full" />
+                                            )}
                                         </div>
 
                                         <div className="flex-grow text-left">
-                                            <span>{channelsUserData[index]?.userData?.firstname + " " + channelsUserData[index]?.userData?.lastname}</span>
+                                            <span>{channelsDoctorData[index]?.doctorData?.name}</span>
                                         </div>
 
                                         <div className="flex-shrink-0 text-sm text-gray-500">
@@ -209,9 +218,9 @@ export default function Messages() {
 
                                     {/* User's Last Message */}
                                     {channel.id !== selectedChannel?.id && (
-                                        <div className="flex-shrink-0 text-sm text-gray-500 mr-auto">
+                                        <div className="flex gap-6 text-sm text-gray-500 mr-auto w-full justify-between">
                                             {userLastMessage(channel)}
-                                            {!channel.data.isDoctorRead && <span className="bg-pink-500 text-white px-2 py-1 rounded-full">New</span>}
+                                            {!channel.data.isUserRead && <span className="bg-pink-500 text-white px-2 py-1 rounded-full">New</span>}
                                         </div>
                                     )}
                                 </Button>

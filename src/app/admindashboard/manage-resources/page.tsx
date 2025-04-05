@@ -463,7 +463,6 @@ export default function ManageResources() {
 
     // Update the handleEditResource function
     const handleEditResource = (resource: Resource) => {
-        console.log('Editing resource:', resource);
         setIsEditMode(true);
         
         // Format dates for form inputs
@@ -560,7 +559,6 @@ export default function ManageResources() {
                 };
             }
 
-            console.log('Updating resource:', resourceFormData._id, 'with data:', updateData);
 
             const response = await axios.put(`/api/admin/resources?id=${resourceFormData._id}`, updateData);
             
@@ -725,7 +723,6 @@ export default function ManageResources() {
 
     // Update the category selection handler
     const handleCategoryChange = (category: ResourceCategory) => {
-        console.log('Category changed to:', category);
         setActiveCategory(category);
     };
 

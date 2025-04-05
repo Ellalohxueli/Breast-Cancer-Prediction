@@ -10,6 +10,7 @@ import { FaRegBell, FaRegUser } from "react-icons/fa";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { start } from "repl";
+import NavBar from "@/components/UserNavBar";
 
 const poppins = Poppins({
     weight: ["400", "500", "600", "700"],
@@ -103,8 +104,6 @@ export default function AppointmentPage() {
                 setBookedAppointments(data.bookedAppointments);
                 setFilteredAppointments(data.appointments);
 
-                console.log("APP DATA", data.appointments);
-                console.log("BOOKED APPOINTMENTS", data.bookedAppointments);
             } catch (error: any) {
                 setError(error.message);
             }
@@ -248,8 +247,6 @@ export default function AppointmentPage() {
 
                 // Filter out any time slot that is already booked or completed on the selected date.
                 const filteredTimeSlots = scheduleForSelectedDay.timeSlots.filter((slot: any) => {
-                    // Log the current slot being checked
-                    console.log(`Checking slot: ${slot.startTime} - ${slot.endTime}`);
 
                     // Check booked appointments for this slot
                     const bookedAppointmentsForSlot = bookedAppointments.filter((booked) => {
@@ -258,32 +255,17 @@ export default function AppointmentPage() {
                         const isSameDay = booked.day === selectedDateDay;
                         const isSameTimeSlot = booked.timeSlot.startTime === slot.startTime && booked.timeSlot.endTime === slot.endTime;
                         
-                        // If this is a matching appointment, log its details
-                        if (isSameDate && isSameDay && isSameTimeSlot) {
-                            console.log('Found matching appointment:', {
-                                slot: `${slot.startTime} - ${slot.endTime}`,
-                                status: booked.status,
-                                date: booked.dateRange.startDate,
-                                day: booked.day
-                            });
-                        }
-                        
                         // Filter out slots that are either "Booked" or "Completed"
                         return isSameDate && isSameDay && isSameTimeSlot && (booked.status === "Booked" || booked.status === "Completed");
                     });
 
                     // Log whether the slot will be kept or filtered out
                     const isSlotAvailable = bookedAppointmentsForSlot.length === 0;
-                    console.log(`Slot ${slot.startTime} - ${slot.endTime} is ${isSlotAvailable ? 'available' : 'filtered out'}`);
 
                     return isSlotAvailable;
                 });
 
                 // Log the final filtered time slots
-                console.log('Final filtered time slots:', filteredTimeSlots.map(slot => ({
-                    time: `${slot.startTime} - ${slot.endTime}`,
-                    id: slot._id
-                })));
 
                 // Return a new appointment object with an updated weeklySchedule
                 // that only contains the selected day's schedule and its filtered time slots.
@@ -298,7 +280,6 @@ export default function AppointmentPage() {
                 };
             });
 
-            console.log("Filtered & Updated Appointments:", updatedAppointments);
             setFilteredAppointments(updatedAppointments);
         };
 
@@ -307,109 +288,7 @@ export default function AppointmentPage() {
 
     return (
         <div className={`min-h-screen bg-gray-50 ${poppins.className}`}>
-            <div className="w-full bg-white shadow">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between h-16">
-                        <div className="flex items-center">
-                            <Image src="/logo.png" alt="Breast Cancer Detection Logo" width={50} height={50} className="w-auto h-auto" />
-                        </div>
-
-                        <nav className="flex-1">
-                            <ul className="flex items-center justify-end space-x-6">
-                                <li>
-                                    <Link href="/dashboard" className="text-gray-600 hover:text-pink-600 font-medium">
-                                        Home
-                                    </Link>
-                                </li>
-                                <li>
-                                    <Link href="/dashboard/services" className="text-gray-600 hover:text-pink-600 font-medium">
-                                        Services
-                                    </Link>
-                                </li>
-                                <li>
-                                    <Link href="/dashboard/ourteams" className="text-pink-600 hover:text-pink-600 font-medium">
-                                        Our Team
-                                    </Link>
-                                </li>
-                                <li>
-                                    <Link 
-                                        href="/dashboard/resources" 
-                                        className="text-gray-600 hover:text-pink-600 font-medium"
-                                    >
-                                        Patient Resources
-                                    </Link>
-                                </li>
-                                <li>
-                                    <Link 
-                                        href="/dashboard/appointments" 
-                                        className="text-gray-600 hover:text-pink-600 font-medium"
-                                    >
-                                        Appointments
-                                    </Link>
-                                </li>
-                                <li>
-                                    <a href="#" className="text-gray-600 hover:text-pink-600 relative">
-                                        <div className="relative">
-                                            <BiMessageRounded className="h-6 w-6" />
-                                            {messageCount > 0 && (
-                                                <span className="absolute -top-2 -right-2 bg-pink-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                                                    {messageCount}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </a>
-                                </li>
-                                <li>
-                                    <a href="#" className="text-gray-600 hover:text-pink-600 relative">
-                                        <FaRegBell className="h-6 w-6" aria-label="Notifications" />
-                                        {notificationCount > 0 && (
-                                            <span className="absolute -top-2 -right-2 bg-pink-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                                                {notificationCount}
-                                            </span>
-                                        )}
-                                    </a>
-                                </li>
-                                <li className="relative">
-                                    <button
-                                        className="text-gray-600 hover:text-pink-600 focus:outline-none p-2 rounded-full hover:bg-gray-100"
-                                        onClick={() => setShowProfileMenu(!showProfileMenu)}
-                                    >
-                                        <FaRegUser className="h-6 w-6" aria-label="Profile" />
-                                    </button>
-
-                                    {showProfileMenu && (
-                                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
-                                            <button onClick={() => router.push("/profile")} className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                                <FaRegUser className="h-4 w-4 mr-3" />
-                                                View Profile
-                                            </button>
-                                            <button onClick={handleLogout} className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-100">
-                                                <svg className="h-4 w-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        strokeWidth="2"
-                                                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                                                    />
-                                                </svg>
-                                                Logout
-                                            </button>
-                                        </div>
-                                    )}
-                                </li>
-                                <li>
-                                    <a
-                                        href="#"
-                                        className="px-4 py-2 text-sm font-medium text-white bg-pink-600 rounded-md hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
-                                    >
-                                        Schedule Appointment
-                                    </a>
-                                </li>
-                            </ul>
-                        </nav>
-                    </div>
-                </div>
-            </div>
+            <NavBar />
 
             {/* Return Section */}
             <div className="text-white py-4 px-8">

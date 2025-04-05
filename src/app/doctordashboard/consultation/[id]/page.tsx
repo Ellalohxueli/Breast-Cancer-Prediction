@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { FiUpload, FiFileText, FiPlus } from 'react-icons/fi';
 import { Poppins } from 'next/font/google';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 const poppins = Poppins({
     weight: ['400', '500', '600', '700'],
@@ -83,7 +84,6 @@ export default function ConsultationPage() {
             
             if (response.data && response.data.doctorId) {
                 setDoctorId(response.data.doctorId);
-                console.log('Doctor ID fetched:', response.data.doctorId);
             }
         } catch (error) {
             console.error('Error fetching doctor ID:', error);
@@ -197,12 +197,6 @@ export default function ConsultationPage() {
                 updatedAt: malaysiaTime.toISOString()
             };
 
-            // Log the data being saved
-            console.log('Data being saved to database:', JSON.stringify(dataToSave, null, 2));
-            console.log('Doctor ID being used:', doctorId);
-            console.log('Patient ID being used:', patientId);
-            console.log('Malaysia time being used:', malaysiaTime.toISOString());
-
             // Save the consultation data to the patient report database
             const response = await fetch('/api/patient-reports', {
                 method: 'POST',
@@ -216,9 +210,6 @@ export default function ConsultationPage() {
                 throw new Error(`Failed to save consultation: ${response.status} ${response.statusText}`);
             }
 
-            // Log successful save
-            console.log('Successfully saved to database');
-
             // Update the appointment status to "Completed"
             try {
                 const completeResponse = await fetch('/api/doctors/appointment/complete', {
@@ -231,9 +222,9 @@ export default function ConsultationPage() {
                 });
 
                 if (!completeResponse.ok) {
-                    console.error('Failed to update appointment status to Completed');
+                    toast.error('Consultation completed, but failed to update appointment status.');
                 } else {
-                    console.log('Successfully updated appointment status to Completed');
+                    toast.success('Consultation completed successfully!');
                 }
             } catch (completeError) {
                 console.error('Error updating appointment status:', completeError);

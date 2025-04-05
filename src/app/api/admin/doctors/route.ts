@@ -23,22 +23,13 @@ export async function GET() {
 
 // POST new doctor
 export async function POST(request: NextRequest) {
-    console.log('Starting doctor registration process...');
-    
     try {
         const body = await request.json();
-        console.log('Received request body:', {
-            name: body.name,
-            email: body.email,
-            phone: body.phone,
-            // Omit password from logging
-        });
 
         // Validate required fields
         const requiredFields = ['name', 'email', 'phone', 'password'];
         for (const field of requiredFields) {
             if (!body[field]) {
-                console.log(`Missing required field: ${field}`);
                 return NextResponse.json(
                     { error: `${field.charAt(0).toUpperCase() + field.slice(1)} is required` },
                     { status: 400 }
@@ -48,9 +39,7 @@ export async function POST(request: NextRequest) {
 
         try {
             // Connect to MongoDB
-            console.log('Attempting to connect to MongoDB...');
             await connectToMongoDB();
-            console.log('MongoDB connection successful');
         } catch (dbError: any) {
             console.error('MongoDB connection error:', dbError);
             return NextResponse.json(
@@ -60,10 +49,8 @@ export async function POST(request: NextRequest) {
         }
 
         // Check if doctor already exists
-        console.log('Checking for existing doctor with email:', body.email);
         const existingDoctor = await Doctor.findOne({ email: body.email.toLowerCase() });
         if (existingDoctor) {
-            console.log('Doctor with this email already exists');
             return NextResponse.json(
                 { error: "A doctor with this email already exists" },
                 { status: 400 }
@@ -71,9 +58,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Hash password
-        console.log('Hashing password...');
         const hashedPassword = await bcryptjs.hash(body.password, 10);
-        console.log('Password hashed successfully');
 
         // Create doctor data
         const doctorData = {
@@ -88,9 +73,7 @@ export async function POST(request: NextRequest) {
             status: 'Active'
         };
 
-        console.log('Attempting to create new doctor...');
         const newDoctor = await Doctor.create(doctorData);
-        console.log('Doctor created successfully with ID:', newDoctor._id);
 
         // Prepare response
         const doctorResponse = newDoctor.toObject();

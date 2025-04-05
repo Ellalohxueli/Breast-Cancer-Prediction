@@ -226,20 +226,12 @@ const DoctorsPage = () => {
     try {
       setLoading(true);
       
-      console.log('Attempting to register doctor with data:', {
-        name: newDoctor.name,
-        email: newDoctor.email,
-        phone: newDoctor.phone
-      });
-
       const response = await axios.post('/api/admin/doctors', {
         name: newDoctor.name,
         email: newDoctor.email,
         phone: newDoctor.phone,
         password: newDoctor.password
       });
-
-      console.log('Registration successful:', response.data);
 
       if (response.data.message) {
         // Reset form and close modal

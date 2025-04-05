@@ -98,27 +98,24 @@ export default function DoctorChat() {
             role: userRole,
         };
 
-        await newChatClient.connectUser(userToConnect, DevToken(userToConnect.id));
+        try {
+            await newChatClient.connectUser(userToConnect, DevToken(userToConnect.id));
+        } catch (error) {
+            toast.error("Error connecting user to chat client");
+        }
 
         const channelId = doctorIdString + "-" + userId;
 
-        const existingChannel = newChatClient.channel("messaging", channelId);
+        const channelInstance = newChatClient.channel("messaging", channelId, {
+            isDoctorRead: false,
+            isUserRead: true,
+        });
 
-        if (!existingChannel) {
-            const newChannel = newChatClient.channel("messaging", channelId);
-            try {
-                await newChannel.watch();
-                setChannel(newChannel);
-            } catch (error) {
-                console.error("Error joining the channel:", error);
-            }
-        } else {
-            try {
-                await existingChannel.watch();
-                setChannel(existingChannel);
-            } catch (error) {
-                console.error("Error joining the channel:", error);
-            }
+        try {
+            await channelInstance.watch();
+            setChannel(channelInstance);
+        } catch (error) {
+            toast.error("Error joining the channel");
         }
 
         setChatClient(newChatClient);
@@ -138,12 +135,14 @@ export default function DoctorChat() {
         try {
             if (channel) {
                 await channel.delete();
-                location.reload();
+
+                toast.success("Channel deleted successfully");
+
+                router.push("/dashboard/ourteams");
             } else {
                 toast.error("Channel not found");
             }
         } catch (error) {
-            console.error("Error deleting the channel:", error);
             toast.error("Error deleting the channel");
         }
     };
@@ -220,7 +219,7 @@ export default function DoctorChat() {
                         </div>
 
                         {!isLoading && doctor && channel && chatClient && (
-                            <LiveChat channel={channel} chatClient={chatClient} userRole={userRole} messageText={messageText} setMessageText={setMessageText} />
+                            <LiveChat channel={channel} chatClient={chatClient} userRole={"user"} messageText={messageText} setMessageText={setMessageText} />
                         )}
                     </div>
                 </div>

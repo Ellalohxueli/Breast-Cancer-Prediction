@@ -28,10 +28,7 @@ export async function GET(request: Request) {
                 ];
             }
 
-            console.log('Resource query:', query); // Debug log
-
             const resources = await Resource.find(query);
-            console.log('Found resources:', resources); // Debug log
 
             return NextResponse.json({
                 success: true,

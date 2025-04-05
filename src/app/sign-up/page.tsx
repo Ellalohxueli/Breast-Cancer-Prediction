@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import { FaAngleLeft } from "react-icons/fa6";
 import { Poppins } from 'next/font/google';
+import toast from "react-hot-toast";
 
 const poppins = Poppins({
     weight: ['400', '500', '600', '700'],
@@ -108,7 +109,7 @@ export default function SignUpPage() {
         try {
             setLoading(true);
             const response = await axios.post('/api/users/signup', user);
-            console.log('signup okay', response.data);
+            toast.success("Sign up successful! Please log in to continue.");
             router.push('/login');
         } catch (error: any) {
             if (error.response?.data?.error) {
@@ -119,7 +120,7 @@ export default function SignUpPage() {
                 setErrors({ email: "An error occurred during signup. Please try again." });
                 setUser(prev => ({ ...prev, email: "" }));
             }
-            console.log('Failed to sign up the user', error.message);
+            toast.error("An error occurred during signup. Please try again.");
         } finally {
             setLoading(false);
         }

@@ -25,7 +25,6 @@ export async function POST(request: Request) {
         const doctorId = decodedToken.id;
 
         const body = await request.json();
-        console.log('Received notification data:', body);
 
         // Validate required fields
         if (!body.appointmentId || !body.patientId || !body.appointmentDate || !body.appointmentTime) {
@@ -37,7 +36,6 @@ export async function POST(request: Request) {
 
         // First, find and update the appointment
         const appointment = await BookedAppointment.findById(body.appointmentId);
-        console.log('Found appointment:', appointment);
         
         if (!appointment) {
             return NextResponse.json({ 
@@ -49,7 +47,6 @@ export async function POST(request: Request) {
         // Update appointment status
         appointment.status = body.status === 'cancelled' ? 'Cancelled' : 'Rescheduled';
         await appointment.save();
-        console.log('Updated appointment status');
 
         // Create notification with proper ObjectId conversion
         const notification = await Notification.create({
@@ -60,8 +57,6 @@ export async function POST(request: Request) {
             appointmentTime: body.appointmentTime,
             status: body.status
         });
-
-        console.log('Created notification:', notification);
 
         return NextResponse.json({ 
             success: true,
@@ -116,8 +111,6 @@ export async function GET() {
         const decodedToken: any = jwt.verify(token, process.env.TOKEN_SECRET!);
         const userId = decodedToken.id;
 
-        console.log('Fetching notifications for user:', userId);
-
         // Fetch notifications for the user (either as doctor or patient)
         const notifications = await Notification.find({
             $or: [
@@ -127,8 +120,6 @@ export async function GET() {
         })
         .sort({ createdAt: -1 }) // Sort by newest first
         .limit(10); // Limit to 10 notifications
-
-        console.log('Found notifications:', notifications);
 
         return NextResponse.json({ 
             success: true,

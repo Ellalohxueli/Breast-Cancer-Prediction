@@ -81,9 +81,6 @@ export async function GET(req: Request) {
             }
         ]);
 
-        // Log the appointments for debugging
-        console.log('Fetched appointments:', JSON.stringify(appointments, null, 2));
-
         return NextResponse.json({ 
             success: true, 
             appointments 

@@ -3,7 +3,7 @@ import { Channel, Chat } from "stream-chat-react";
 import Messages from "@/components/ui/Messages";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { StreamChat } from "stream-chat";
+import { StreamChat, Message } from "stream-chat";
 
 interface LiveChatProps {
     channel: Channel;
@@ -14,6 +14,28 @@ interface LiveChatProps {
 }
 
 export default function LiveChat({ channel, chatClient, userRole, messageText, setMessageText }: LiveChatProps) {
+    const handleSendMessage = async () => {
+        let updateType: string;
+
+        if (userRole === "doctor") {
+            updateType = "isUserRead";
+        } else {
+            updateType = "isDoctorRead";
+        }
+
+        if (channel && messageText.trim()) {
+            await channel.sendMessage({ text: messageText });
+
+            await channel.updatePartial({
+                set: {
+                    [updateType]: false,
+                },
+            });
+
+            setMessageText("");
+        }
+    };
+
     return (
         <>
             <div className="flex-1 overflow-y-auto">
@@ -28,15 +50,7 @@ export default function LiveChat({ channel, chatClient, userRole, messageText, s
 
             <Textarea id="message_text" value={messageText} onChange={(e) => setMessageText(e.target.value)} placeholder="Type your message..." className="min-h-[100px] w-full" />
 
-            <Button
-                className="w-full px-4 py-2 mt-4 bg-pink-600 text-white rounded-md hover:bg-pink-700"
-                onClick={() => {
-                    if (channel && messageText.trim()) {
-                        channel.sendMessage({ text: messageText });
-                        setMessageText("");
-                    }
-                }}
-            >
+            <Button className="w-full px-4 py-2 mt-4 bg-pink-600 text-white rounded-md hover:bg-pink-700" onClick={handleSendMessage}>
                 Send Message
             </Button>
         </>

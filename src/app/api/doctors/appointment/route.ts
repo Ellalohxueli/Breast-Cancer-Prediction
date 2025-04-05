@@ -127,13 +127,6 @@ export async function GET(req: Request) {
             apt.status === 'Cancelled' || apt.status === 'Rescheduled'
         ).length;
 
-        // Log the counts for debugging
-        console.log('Patient counts:', {
-            total: allAppointments.length,
-            included: includedPatientsCount,
-            excluded: excludedPatientsCount
-        });
-
         return NextResponse.json({ 
             success: true, 
             appointments,

@@ -1,17 +1,54 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import { FiCalendar, FiUsers, FiMessageSquare, FiFileText, FiLogOut, FiGrid } from "react-icons/fi";
 import useCheckCookies from "@/controller/UseCheckCookie";
 import UseRemoveLocalStorage from "@/controller/UseRemoveLocalStorage";
+import { StreamChat } from "stream-chat";
+import { DevToken } from "stream-chat";
 
 export default function DoctorNavBar() {
     const pathname = usePathname();
     const [isDarkMode, setIsDarkMode] = useState(false);
+    const [channels, setChannels] = useState<any[]>([]);
+    const [userChannelIds, setUserChannelIds] = useState<string[]>([]);
+    const [doctorId, setDoctorId] = useState<string>("");
+    const [channelsUserData, setChannelsUserData] = useState<any[]>([]);
+    const [chatClient, setChatClient] = useState<any>(null);
+    const [userRole, setUserRole] = useState<"doctor" | "user">("user");
+    const [unreadCount, setUnreadCount] = useState(0);
 
     useCheckCookies();
+
+    const loadChatClient = async () => {
+        const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY;
+        if (!apiKey) {
+            throw new Error("Stream API key is missing");
+        }
+
+        const client = new StreamChat(apiKey, {
+            enableWSFallback: true,
+        });
+
+        const username = localStorage.getItem("name")?.replace(/[\s.]+/g, "_") || "defaultUser";
+
+        const user = {
+            id: username,
+            role: userRole,
+        };
+
+        try {
+            await client.connectUser(user, DevToken(user.id));
+        } catch (error) {
+            console.error("Error connecting user:", error);
+        }
+
+        setChatClient(client);
+
+        return client;
+    };
 
     const handleLogout = async () => {
         try {
@@ -25,6 +62,74 @@ export default function DoctorNavBar() {
             console.error("Error:", error);
         }
     };
+
+    const fetchChannels = async (client: any) => {
+        const filter = { type: "messaging" };
+        const sort = [{ last_message_at: -1 }];
+
+        const channels = await client.queryChannels(filter, sort, {});
+
+        const filteredChannels = channels
+            .filter((channel: any) => channel.id.includes(doctorId))
+            .filter((channel: any) => channel.state.messages && channel.state.messages.length > 0);
+
+        setUserChannelIds(filteredChannels.map((channel: any) => channel.id));
+
+        const usersData = await Promise.all(
+            filteredChannels.map(async (channel: any) => {
+                const userId = channel.id.split("-")[1];
+
+                const response = await fetch(`/api/users/${userId}`);
+
+                if (!response.ok) {
+                    throw new Error("Failed to fetch user data");
+                }
+
+                const userData = await response.json();
+
+                return {
+                    userData: userData.userData[0],
+                };
+            })
+        );
+
+        setChannelsUserData(usersData);
+
+        setChannels(filteredChannels);
+    };
+
+    const updateUnreadCount = () => {
+        chatClient?.queryChannels({ type: "messaging" }, { last_message_at: -1 }, {}).then((channels: any) => {
+            const unreadCount = channels
+                .filter((channel: any) => channel.id.includes(doctorId))
+                .filter((channel: any) => channel.state.messages && channel.state.messages.length > 0)
+                .filter((channel: any) => !channel.data.isDoctorRead).length;
+
+            setUnreadCount(unreadCount);
+        });
+    };
+
+    useEffect(() => {
+        if (chatClient) {
+            updateUnreadCount();
+
+            const interval = setInterval(() => {
+                updateUnreadCount();
+            }, 20000);
+            return () => clearInterval(interval);
+        }
+    }, [channels]);
+
+    useEffect(() => {
+        const storedDoctorId = localStorage.getItem("doctorId");
+        setDoctorId(storedDoctorId || "");
+
+        const channelClient = loadChatClient();
+
+        channelClient.then((client) => {
+            fetchChannels(client);
+        });
+    }, [doctorId]);
 
     return (
         <div className={`w-64 shadow-lg flex flex-col justify-between fixed left-0 top-0 h-screen ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
@@ -55,7 +160,7 @@ export default function DoctorNavBar() {
                                 href: "/doctordashboard/messages",
                                 icon: <FiMessageSquare className="w-5 h-5 mr-4" />,
                                 text: "Messages",
-                                badge: 5,
+                                badge: unreadCount > 0 ? unreadCount : null,
                             },
                             { href: "/doctordashboard/reports", icon: <FiFileText className="w-5 h-5 mr-4" />, text: "Reports" },
                         ].map((item, index) => (

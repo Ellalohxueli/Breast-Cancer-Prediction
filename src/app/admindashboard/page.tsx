@@ -61,7 +61,6 @@ export default function AdminDashboard() {
     useEffect(() => {
         try {
             const storedFirstname = localStorage.getItem('firstname');
-            console.log('Stored firstname:', storedFirstname);
             if (storedFirstname) {
                 setFirstName(storedFirstname);
             }

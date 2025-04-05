@@ -47,10 +47,6 @@ export async function POST(request: Request) {
         // Remove the timestamp fields from the data to be saved
         const { createdAt: _, updatedAt: __, ...dataWithoutTimestamps } = data;
         
-        // Log the data being saved
-        console.log('Creating patient report with data:', JSON.stringify(dataWithoutTimestamps, null, 2));
-        console.log('Using timestamps:', { createdAt, updatedAt });
-
         const patientReport = await PatientReport.create({
             ...dataWithoutTimestamps,
             createdAt,

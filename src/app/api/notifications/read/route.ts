@@ -39,8 +39,6 @@ export async function PUT(request: Request) {
             }, { status: 404 });
         }
 
-        console.log('Updated notification read status:', updatedNotification);
-
         return NextResponse.json({ 
             success: true,
             notification: updatedNotification 

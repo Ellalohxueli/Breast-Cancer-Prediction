@@ -3,9 +3,12 @@ import Link from "next/link";
 import { BiMessageRounded } from "react-icons/bi";
 import React, { useState, useEffect } from "react";
 import { FaRegUser, FaRegBell } from "react-icons/fa";
-import { useRouter } from "next/navigation";
 import axios from "axios";
 import UseRemoveLocalStorage from "@/controller/UseRemoveLocalStorage";
+import { useRouter } from "next/navigation";
+import useCheckCookies from "@/controller/UseCheckCookie";
+import { StreamChat } from "stream-chat";
+import { DevToken } from "stream-chat";
 
 type NotificationData = {
     _id: string;
@@ -21,7 +24,7 @@ type NotificationData = {
 };
 
 export default function NavBar() {
-    const [messageCount, setMessageCount] = useState(3);
+    const [messageCount, setMessageCount] = useState(0);
     const [notificationCount, setNotificationCount] = useState(0);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
@@ -30,21 +33,52 @@ export default function NavBar() {
     const [selectedNotification, setSelectedNotification] = useState<NotificationData | null>(null);
     const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
     const [showProfileMenu, setShowProfileMenu] = useState(false);
-    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-    const router = useRouter();
+    const [currentPath, setCurrentPath] = useState<string>("");
+    const [userId, setUserId] = useState<string>("");
+    const [chatClient, setChatClient] = useState<any>(null);
+    const [channels, setChannels] = useState<any[]>([]);
+
+    useCheckCookies();
+
+    const loadChatClient = async () => {
+        const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY;
+        if (!apiKey) {
+            throw new Error("Stream API key is missing");
+        }
+
+        const client = new StreamChat(apiKey, {
+            enableWSFallback: true,
+        });
+
+        const username = localStorage.getItem("firstname")?.replace(/[\s.]+/g, "_") || "defaultUser";
+
+        const user = {
+            id: username,
+            role: "user",
+        };
+
+        try {
+            await client.connectUser(user, DevToken(user.id));
+        } catch (error) {
+            console.error("Error connecting user:", error);
+        }
+
+        setChatClient(client);
+
+        return client;
+    };
 
     const handleProfileIconClick = () => {
         setShowProfileMenu((prev) => !prev);
     };
 
     const handleProfileClick = () => {
-        setIsProfileModalOpen(true);
         setShowProfileMenu(false);
     };
 
     const handleLogout = async () => {
         try {
-            const response = await axios.get("/api/users/logout");
+            await axios.get("/api/users/logout");
 
             // Use the hook here after the logout action
             UseRemoveLocalStorage();
@@ -54,6 +88,74 @@ export default function NavBar() {
             console.error("Error:", error);
         }
     };
+
+    const fetchChannels = async (client: any) => {
+        const filter = { type: "messaging" };
+        const sort = [{ last_message_at: -1 }];
+
+        const channels = await client.queryChannels(filter, sort, {});
+
+        const filteredChannels = channels
+            .filter((channel: any) => channel.id.includes(userId))
+            .filter((channel: any) => channel.state.messages && channel.state.messages.length > 0);
+
+        const doctorsData = await Promise.all(
+            filteredChannels.map(async (channel: any) => {
+                const doctorId = channel.id.split("-")[0];
+
+                const response = await fetch(`/api/doctors/${doctorId}`);
+
+                if (!response.ok) {
+                    throw new Error("Failed to fetch doctor data");
+                }
+
+                const doctorData = await response.json();
+
+                return {
+                    doctorData: doctorData.doctorData[0],
+                };
+            })
+        );
+
+        setChannels(filteredChannels);
+    };
+
+    const updateUnreadCount = () => {
+        chatClient?.queryChannels({ type: "messaging" }, { last_message_at: -1 }, {}).then((channels: any) => {
+            const unreadCount = channels
+                .filter((channel: any) => channel.id.includes(userId))
+                .filter((channel: any) => channel.state.messages && channel.state.messages.length > 0)
+                .filter((channel: any) => !channel.data.isUserRead).length;
+
+            setMessageCount(unreadCount);
+        });
+    };
+
+    useEffect(() => {
+        const currentPath = window.location.pathname;
+        setCurrentPath(currentPath);
+    }, [currentPath]);
+
+    useEffect(() => {
+        if (chatClient) {
+            updateUnreadCount();
+
+            const interval = setInterval(() => {
+                updateUnreadCount();
+            }, 20000);
+            return () => clearInterval(interval);
+        }
+    }, [channels]);
+
+    useEffect(() => {
+        setUserId(localStorage.getItem("userId") || "");
+
+        const channelClient = loadChatClient();
+
+        channelClient.then((client) => {
+            fetchChannels(client);
+        });
+    }, [userId]);
 
     return (
         <div className="w-full bg-white shadow">
@@ -66,41 +168,53 @@ export default function NavBar() {
                     <nav className="flex-1">
                         <ul className="flex items-center justify-end space-x-6">
                             <li>
-                                <Link href="/dashboard" className="text-gray-600 hover:text-pink-600 font-medium">
-                                    Home
+                                <Link href="/dashboard" className={`font-medium ${currentPath === "/dashboard" ? "text-pink-600" : "text-gray-600"} hover:text-pink-600`}>
+                                    HHHome
                                 </Link>
                             </li>
                             <li>
-                                <Link href="/dashboard/services" className="text-gray-600 hover:text-pink-600 font-medium">
+                                <Link
+                                    href="/dashboard/services"
+                                    className={`font-medium ${currentPath === "/dashboard/services" ? "text-pink-600" : "text-gray-600"} hover:text-pink-600`}
+                                >
                                     Services
                                 </Link>
                             </li>
                             <li>
-                                <Link href="/dashboard/ourteams" className="text-pink-600 hover:text-pink-600 font-medium">
+                                <Link
+                                    href="/dashboard/ourteams"
+                                    className={`font-medium ${currentPath === "/dashboard/ourteams" ? "text-pink-600" : "text-gray-600"} hover:text-pink-600`}
+                                >
                                     Our Team
                                 </Link>
                             </li>
                             <li>
-                                <Link href="/dashboard/resources" className="text-gray-600 hover:text-pink-600 font-medium">
+                                <Link
+                                    href="/dashboard/resources"
+                                    className={`font-medium ${currentPath === "/dashboard/resources" ? "text-pink-600" : "text-gray-600"} hover:text-pink-600`}
+                                >
                                     Patient Resources
                                 </Link>
                             </li>
                             <li>
-                                <Link href="/dashboard/appointments" className="text-gray-600 hover:text-pink-600 font-medium">
+                                <Link
+                                    href="/dashboard/appointments"
+                                    className={`font-medium ${currentPath === "/dashboard/appointments" ? "text-pink-600" : "text-gray-600"} hover:text-pink-600`}
+                                >
                                     Appointments
                                 </Link>
                             </li>
                             <li>
-                                <a href="#" className="text-gray-600 hover:text-pink-600 relative">
+                                <Link href="/dashboard/messages" className="text-gray-600 hover:text-pink-600 relative">
                                     <div className="relative">
-                                        <BiMessageRounded className="h-6 w-6" />
+                                        <BiMessageRounded className="h-6 w-6" fill={currentPath === "/dashboard/messages" ? "#db2777" : "currentColor"} />
                                         {messageCount > 0 && (
                                             <span className="absolute -top-2 -right-2 bg-pink-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
                                                 {messageCount}
                                             </span>
                                         )}
                                     </div>
-                                </a>
+                                </Link>
                             </li>
                             <li>
                                 <div className="relative">
@@ -108,7 +222,7 @@ export default function NavBar() {
                                         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                                         className="text-gray-600 hover:text-pink-600 relative p-2 rounded-full hover:bg-gray-100"
                                     >
-                                        <FaRegBell className="h-6 w-6" aria-label="Notifications" />
+                                        <FaRegBell className="h-6 w-6" aria-label="Notifications" fill={isDropdownOpen ? "#db2777" : "currentColor"} />
                                         {notificationCount > 0 && (
                                             <span className="absolute top-0 right-0 bg-pink-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center text-[10px]">
                                                 {notificationCount}
@@ -129,7 +243,7 @@ export default function NavBar() {
                             </li>
                             <li className="relative">
                                 <button className="text-gray-600 hover:text-pink-600 focus:outline-none p-2 rounded-full hover:bg-gray-100" onClick={handleProfileIconClick}>
-                                    <FaRegUser className="h-6 w-6" aria-label="Profile" />
+                                    <FaRegUser className="h-6 w-6" aria-label="Profile" fill={showProfileMenu ? "#db2777" : "currentColor"} />
                                 </button>
 
                                 {showProfileMenu && (

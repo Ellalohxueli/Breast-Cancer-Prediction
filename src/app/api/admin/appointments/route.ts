@@ -14,10 +14,6 @@ export async function GET(request: NextRequest) {
             'name specialization'
         ).sort({ name: 1 });
         
-        // Log the total number of doctors
-        console.log(`Total doctors in database: ${doctors.length}`);
-        console.log('Doctor names:', doctors.map(doctor => doctor.name));
-
         // Get all booked appointments with populated doctor and patient data
         const appointments = await BookedAppointment.find()
             .sort({ 'dateRange.startDate': -1 }); // Sort by date, newest first

@@ -25,6 +25,7 @@ import axios from 'axios';
 import { FaXRay, FaCalendar, FaVial, FaNotesMedical, FaFirstAid, FaPrescription, FaHeartbeat, FaUserMd, FaHospital, FaHandHolding, FaComments, FaShieldAlt, FaChartLine, FaClinicMedical, FaHospitalUser } from 'react-icons/fa';
 import { FiSearch } from 'react-icons/fi';
 import { FaClock } from 'react-icons/fa';
+import NavBar from '@/components/UserNavBar';
 
 const poppins = Poppins({
     weight: ['400', '500', '600', '700'],
@@ -161,7 +162,6 @@ export default function DashboardPage() {
     };
 
     const handleLogout = async () => {
-        console.log('Logout clicked');
         try {
             await axios.get("/api/users/logout");
             localStorage.removeItem('firstname');
@@ -218,7 +218,6 @@ export default function DashboardPage() {
         const fetchInitialNotifications = async () => {
             try {
                 const response = await axios.get('/api/notifications');
-                console.log('Initial notifications fetch:', response.data);
                 if (response.data.success) {
                     setNotifications(response.data.notifications);
                     // Count unread notifications
@@ -226,7 +225,6 @@ export default function DashboardPage() {
                         (n: NotificationData) => !n.isRead
                     ).length;
                     setNotificationCount(unreadCount);
-                    console.log('Initial unread notifications count:', unreadCount);
                 }
             } catch (error) {
                 console.error('Error fetching initial notifications:', error);
@@ -243,7 +241,6 @@ export default function DashboardPage() {
                 setNotificationError(null);
                 try {
                     const response = await axios.get('/api/notifications');
-                    console.log('Dropdown notifications fetch:', response.data);
                     if (response.data.success) {
                         setNotifications(response.data.notifications);
                         // Update notification count
@@ -251,7 +248,6 @@ export default function DashboardPage() {
                             (n: NotificationData) => !n.isRead
                         ).length;
                         setNotificationCount(unreadCount);
-                        console.log('Updated unread notifications count:', unreadCount);
                     }
                 } catch (error) {
                     console.error('Error fetching notifications:', error);
@@ -580,14 +576,6 @@ export default function DashboardPage() {
         const malaysiaTime = new Date(now.getTime() + malaysiaOffset);
         const createdAt = new Date(dateString);
         
-        // Add detailed console logs
-        console.log('Timezone Information:', {
-            createdAtOriginal: dateString,
-            createdAtParsed: createdAt.toISOString(),
-            currentTimeUTC: now.toISOString(),
-            malaysiaTime: malaysiaTime.toISOString(),
-        });
-        
         // Get time differences in milliseconds
         const diffInMs = malaysiaTime.getTime() - createdAt.getTime();
         
@@ -596,13 +584,6 @@ export default function DashboardPage() {
         const diffInHours = Math.floor(diffInMinutes / 60);
         const diffInDays = Math.floor(diffInHours / 24);
         
-        console.log('Time differences:', {
-            milliseconds: diffInMs,
-            minutes: diffInMinutes,
-            hours: diffInHours,
-            days: diffInDays
-        });
-
         // More precise time difference handling
         if (diffInMinutes < 1) {
             return 'just now';
@@ -630,7 +611,6 @@ export default function DashboardPage() {
         try {
             // Only update if notification is unread
             if (!notification.isRead) {
-                console.log('Updating notification read status for:', notification._id);
                 
                 const response = await axios.put('/api/notifications/read', {
                     notificationId: notification._id
@@ -680,186 +660,7 @@ export default function DashboardPage() {
     return (
         <div id="top" className={`min-h-screen bg-gray-50 ${poppins.className}`}>
             {/* Full width white navigation bar */}
-            <div className="w-full bg-white shadow">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between h-16">
-                        <div className="flex items-center">
-                            <Image
-                                src="/logo.png"
-                                alt="Breast Cancer Detection Logo"
-                                width={50}
-                                height={50}
-                                className="w-auto h-auto"
-                            />
-                        </div>
-                        
-                        <nav className="flex-1">
-                            <ul className="flex items-center justify-end space-x-6">
-                                <li>
-                                    <Link 
-                                        href="/dashboard" 
-                                        className="text-pink-600 hover:text-pink-600 font-medium"
-                                    >
-                                        Home
-                                    </Link>
-                                </li>
-                                <li>
-                                    <Link 
-                                        href="/dashboard/services" 
-                                        className="text-gray-600 hover:text-pink-600 font-medium"
-                                    >
-                                        Services
-                                    </Link>
-                                </li>
-                                <li>
-                                    <Link 
-                                        href="/dashboard/ourteams" 
-                                        className="text-gray-600 hover:text-pink-600 font-medium"
-                                    >
-                                        Our Team
-                                    </Link>
-                                </li>
-                                <li>
-                                    <Link 
-                                        href="/dashboard/resources" 
-                                        className="text-gray-600 hover:text-pink-600 font-medium"
-                                    >
-                                        Patient Resources
-                                    </Link>
-                                </li>
-                                <li>
-                                    <Link 
-                                        href="/dashboard/appointments" 
-                                        className="text-gray-600 hover:text-pink-600 font-medium"
-                                    >
-                                        Appointments
-                                    </Link>
-                                </li>
-                                <li>
-                                    <a href="#" className="text-gray-600 hover:text-pink-600 relative p-2">
-                                        <div className="relative">
-                                            <BiMessageRounded className="h-6 w-6" />
-                                            {messageCount > 0 && (
-                                                <span className="absolute -top-2 -right-2 bg-pink-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                                                    {messageCount}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </a>
-                                </li>
-                                <li>
-                                    <div className="relative">
-                                        <button 
-                                            onClick={() => setIsDropdownOpen(!isDropdownOpen)} 
-                                            className="text-gray-600 hover:text-pink-600 relative p-2 rounded-full hover:bg-gray-100"
-                                        >
-                                            <FaRegBell className="h-6 w-6" aria-label="Notifications" />
-                                            {notificationCount > 0 && (
-                                                <span className="absolute top-0 right-0 bg-pink-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center text-[10px]">
-                                                    {notificationCount}
-                                                </span>
-                                            )}
-                                        </button>
-
-                                        {isDropdownOpen && (
-                                            <div className="absolute right-0 mt-2 w-96 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
-                                                <div className="px-4 py-2 border-b border-gray-200">
-                                                    <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
-                                                </div>
-                                                
-                                                <div className="max-h-96 overflow-y-auto">
-                                                    {isLoadingNotifications ? (
-                                                        <div className="px-4 py-3 text-sm text-gray-500 text-center">
-                                                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-pink-600 mx-auto"></div>
-                                                            <p className="mt-2">Loading notifications...</p>
-                                                        </div>
-                                                    ) : notificationError ? (
-                                                        <div className="px-4 py-3 text-sm text-red-500">
-                                                            {notificationError}
-                                                        </div>
-                                                    ) : notifications.length > 0 ? (
-                                                        notifications.map((notification) => (
-                                                            <div 
-                                                                key={notification._id} 
-                                                                className={`px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-0 ${
-                                                                    !notification.isRead ? 'bg-pink-50' : ''
-                                                                } cursor-pointer`}
-                                                                onClick={() => handleNotificationClick(notification)}
-                                                            >
-                                                                <div className="flex items-start">
-                                                                    <div className="flex-1">
-                                                                        <p className="text-sm font-medium text-gray-900">
-                                                                            Appointment {notification.status}
-                                                                        </p>
-                                                                        <p className="text-xs text-gray-600 mt-1">
-                                                                            {notification.appointmentDay}, {new Date(notification.appointmentDate).toLocaleDateString('en-US', {
-                                                                                year: 'numeric',
-                                                                                month: 'long',
-                                                                                day: 'numeric'
-                                                                            })} at {formatTime(notification.appointmentTime)}
-                                                                        </p>
-                                                                        <p className="text-xs text-gray-500 mt-2">
-                                                                            {formatDate(notification.createdAt)}
-                                                                        </p>
-                                                                    </div>
-                                                                    {!notification.isRead && (
-                                                                        <span className="h-2 w-2 bg-pink-500 rounded-full mt-1"></span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        ))
-                                                    ) : (
-                                                        <div className="px-4 py-3 text-sm text-gray-500 text-center">
-                                                            No notifications
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </li>
-                                <li className="relative">
-                                    <button 
-                                        className="text-gray-600 hover:text-pink-600 focus:outline-none p-2 rounded-full hover:bg-gray-100"
-                                        onClick={handleProfileIconClick}
-                                    >
-                                        <FaRegUser className="h-6 w-6" aria-label="Profile" />
-                                    </button>
-                                    
-                                    {showProfileMenu && (
-                                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
-                                            <button
-                                                onClick={handleProfileClick}
-                                                className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                            >
-                                                <FaRegUser className="h-4 w-4 mr-3" />
-                                                Profile
-                                            </button>
-                                            <button
-                                                onClick={handleLogout}
-                                                className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
-                                            >
-                                                <svg className="h-4 w-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                                </svg>
-                                                Logout
-                                            </button>
-                                        </div>
-                                    )}
-                                </li>
-                                <li>
-                                    <a 
-                                        href="/dashboard/ourteams"
-                                        className="px-4 py-2 text-sm font-medium text-white bg-pink-600 rounded-md hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
-                                    >
-                                        Schedule Appointment
-                                    </a>
-                                </li>
-                            </ul>
-                        </nav>
-                    </div>
-                </div>
-            </div>
+            <NavBar />
 
             {/* Hero Section */}
             <div className="relative h-[600px] w-full">
