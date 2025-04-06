@@ -149,6 +149,8 @@ export default function Messages() {
 
     // Load chat client and fetch channels when userId or urlType changes
     useEffect(() => {
+        setIsLoading(true);
+
         setUserId(localStorage.getItem("userId") || "");
 
         const channelClientPromise = loadChatClient();
@@ -237,6 +239,7 @@ export default function Messages() {
 
         setChannelsMessageData(messagesData);
         setChannels(filChannels);
+        setIsLoading(false);
     };
 
     useEffect(() => {
@@ -288,8 +291,11 @@ export default function Messages() {
                 setSelectedChannel(null);
                 setChatName("");
                 setMessageText("");
-                fetchChannels(chatClient, urlType);
+                setChannels([]);
+
                 toast.success("Channel deleted successfully");
+
+                location.reload();
             } else {
                 toast.error("Channel not found");
             }
@@ -518,7 +524,7 @@ export default function Messages() {
                         </div>
 
                         <ul className="space-y-2">
-                            {channels.map((channel, index) => (
+                            {!isLoading && channels.map((channel, index) => (
                                 <li key={index} className="flex space-x-4 mt-5">
                                     <Button
                                         onClick={() => handleChannelSelection(channel, index)}

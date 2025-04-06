@@ -4,12 +4,15 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { FiHome, FiUsers, FiCalendar, FiSettings, FiFileText, FiSun, FiMoon, FiBell, FiMessageCircle, FiChevronDown, FiX, FiChevronRight } from "react-icons/fi";
-import { FaUserDoctor } from "react-icons/fa6";
+import { FaComment, FaUserDoctor } from "react-icons/fa6";
 import { FaSearch, FaPlus, FaEdit, FaTrash, FaEye } from "react-icons/fa";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import axios from "axios";
 import useCheckCookies from "@/controller/UseCheckCookie";
 import useCheckAdminUnreadMss from "@/controller/UseCheckAdminUnreadMss";
+import { DevToken, StreamChat } from "stream-chat";
+import toast from "react-hot-toast";
+import LiveChat from "@/components/LiveChat";
 
 // Add this with your other type definitions
 type NavigationItem = {
@@ -65,6 +68,12 @@ const DoctorsPage = () => {
     const pathname = usePathname();
     const [doctors, setDoctors] = useState([]);
     const [filteredDoctors, setFilteredDoctors] = useState([]);
+    const router = useRouter();
+    const [chatClient, setChatClient] = useState<any>(null);
+    const [chatChannel, setChatChannel] = useState<any>(null);
+    const [isChatModalOpen, setIsChatModalOpen] = useState(false);
+    const [messageText, setMessageText] = useState("");
+    const [userRole, setUserRole] = useState<"adminToDoctor" | "adminToUser">("adminToDoctor");
 
     useCheckCookies();
 
@@ -539,6 +548,57 @@ const DoctorsPage = () => {
         return () => clearInterval(intervalId);
     }, []);
 
+    const loadChatClient = async () => {
+        const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY;
+        if (!apiKey) {
+            throw new Error("Stream API key is missing");
+        }
+        const client = new StreamChat(apiKey, { enableWSFallback: true });
+        const user = { id: "Admin", role: userRole };
+        try {
+            await client.connectUser(user, DevToken(user.id));
+        } catch (error) {
+            console.error("Error connecting user:", error);
+        }
+        setChatClient(client);
+        return client;
+    };
+
+    useEffect(() => {
+        loadChatClient();
+    }, []);
+
+    const handleChatDoctor = async (doctorId: string) => {
+        if (!chatClient) return;
+
+        const channelId = `${doctorId}-admin`;
+
+        try {
+            const channels = await chatClient.queryChannels({ id: { $eq: channelId } }, [{ last_message_at: -1 }], {});
+
+            let channel;
+
+            if (channels.length > 0) {
+                channel = channels[0];
+                await channel.watch();
+                await channel.updatePartial({ set: { isAdminRead: true } });
+            } else {
+                channel = chatClient.channel("messaging", channelId, {
+                    isAdminRead: true,
+                    isDoctorRead: false,
+                });
+                await channel.create();
+                await channel.watch();
+            }
+            setUserRole("adminToDoctor");
+            setChatChannel(channel);
+            setIsChatModalOpen(true);
+        } catch (error) {
+            toast.error("Error opening chat channel");
+            console.error("Error opening chat channel:", error);
+        }
+    };
+
     return (
         <div className={`flex min-h-screen ${isDarkMode ? "bg-gray-900" : "bg-gray-50"}`}>
             {/* Sidebar - Fixed */}
@@ -624,23 +684,6 @@ const DoctorsPage = () => {
 
                         {/* Theme Toggle and Profile */}
                         <div className="flex items-center space-x-3">
-                            {/* Theme Toggle */}
-                            {/* <div className={`flex items-center justify-between w-16 h-8 rounded-full p-1 cursor-pointer ${
-                isDarkMode ? 'bg-gray-700' : 'bg-pink-100'
-              }`}
-              onClick={toggleTheme}>
-                <div className={`flex items-center justify-center w-6 h-6 rounded-full transition-colors ${
-                  isDarkMode ? 'bg-transparent' : 'bg-white'
-                }`}>
-                  <FiSun className={`w-4 h-4 ${isDarkMode ? 'text-gray-400' : 'text-pink-800'}`} />
-                </div>
-                <div className={`flex items-center justify-center w-6 h-6 rounded-full transition-colors ${
-                  isDarkMode ? 'bg-white' : 'bg-transparent'
-                }`}>
-                  <FiMoon className={`w-4 h-4 ${isDarkMode ? 'text-gray-800' : 'text-gray-400'}`} />
-                </div>
-              </div> */}
-
                             {/* Profile */}
                             <div className="flex items-center space-x-3 relative">
                                 <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="flex items-center space-x-3 focus:outline-none">
@@ -790,6 +833,13 @@ const DoctorsPage = () => {
                                                         title="Delete"
                                                     >
                                                         <FaTrash className="w-5 h-5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleChatDoctor(doctor._id)}
+                                                        className={`${isDarkMode ? "text-purple-400" : "text-purple-600"} hover:opacity-80`}
+                                                        title="Chat"
+                                                    >
+                                                        <FaComment className="w-5 h-5" />
                                                     </button>
                                                 </div>
                                             </td>
@@ -1316,6 +1366,22 @@ const DoctorsPage = () => {
                             >
                                 Manage Resources
                             </Link>
+                        </div>
+                    )}
+
+                    {/* Chat Modal with Backdrop */}
+                    {isChatModalOpen && chatChannel && chatClient && (
+                        <div className="fixed inset-0 backdrop-blur-sm bg-white/30 dark:bg-gray-900/30 flex items-center justify-center z-50">
+                            <div className="bg-white rounded-lg p-6 w-full max-w-md relative shadow-xl backdrop-blur-sm border max-h-[90vh] overflow-y-auto">
+                                <button
+                                    onClick={() => setIsChatModalOpen(false)}
+                                    className="absolute top-2 right-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
+                                    title="Close Chat"
+                                >
+                                    <FiX className="w-6 h-6" />
+                                </button>
+                                <LiveChat channel={chatChannel} chatClient={chatClient} userRole={userRole} messageText={messageText} setMessageText={setMessageText} />
+                            </div>
                         </div>
                     )}
                 </div>
