@@ -26,11 +26,12 @@ export default function Messages() {
     const [chatClient, setChatClient] = useState<any>(null);
     const [messageText, setMessageText] = useState("");
     const [userChannelIds, setUserChannelIds] = useState<string[]>([]);
-    const [userRole, setUserRole] = useState<"doctor" | "user">("user");
+    const [userRole, setUserRole] = useState<"doctor" | "user" | "userToAdmin">("user");
     const [channelsDoctorData, setChannelsDoctorData] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [userId, setUserId] = useState<string>("");
     const [chatName, setChatName] = useState<string>("");
+    const [adminChannel, setAdminChannel] = useState<any>(null);
 
     const loadChatClient = async () => {
         const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY;
@@ -45,7 +46,7 @@ export default function Messages() {
         const username = localStorage.getItem("firstname")?.replace(/[\s.]+/g, "_") || "defaultUser";
 
         const user = {
-            id: username + '_User',
+            id: username + "_User",
             role: userRole,
         };
 
@@ -72,6 +73,12 @@ export default function Messages() {
             .filter((channel: any) => !channel.id.includes("admin"));
 
         setUserChannelIds(filteredChannels.map((channel: any) => channel.id));
+
+        const filteredAdminChannels = channels.filter(
+            (channel: any) => channel.id.includes(userId) && channel.id.includes("admin") && channel.state.messages && channel.state.messages.length > 0
+        );
+
+        setAdminChannel(filteredAdminChannels[0] || null);
 
         const doctorsData = await Promise.all(
             filteredChannels.map(async (channel: any) => {
@@ -119,6 +126,7 @@ export default function Messages() {
             const updatedChannel = channels.find((c) => c.id === channel.id);
 
             if (updatedChannel) {
+                setUserRole("user");
                 setSelectedChannel(updatedChannel);
                 setChatName(channelsDoctorData[dex]?.doctorData?.name);
             }
@@ -169,7 +177,11 @@ export default function Messages() {
 
         return (
             <div className="flex-shrink-0 text-sm text-gray-500">
-                {lastMessageSender === channel.data.created_by.id ? <span>You: {lastMessageText}</span> : <span>{lastMessageText}</span>}
+                {lastMessageSender === channel.data.created_by.id ? (
+                    <span>You: {lastMessageText}</span>
+                ) : (
+                    <span className={`${!channel.data.isUserRead && `font-bold text-black`}`}>{lastMessageText}</span>
+                )}
             </div>
         );
     };
@@ -196,8 +208,13 @@ export default function Messages() {
         try {
             const channels = await chatClient.queryChannels(filter, sort, {});
 
+            let adminChannel;
+
             if (channels.length > 0) {
-                setSelectedChannel(channels[0]);
+                adminChannel = channels[0];
+
+                await adminChannel.watch();
+                await adminChannel.updatePartial({ set: { isUserRead: true } });
             } else {
                 const adminChannel = chatClient.channel("messaging", adminChannelId, {
                     isAdminRead: false,
@@ -206,9 +223,9 @@ export default function Messages() {
 
                 await adminChannel.create();
                 await adminChannel.watch();
-
-                setSelectedChannel(adminChannel);
             }
+            setUserRole("userToAdmin");
+            setSelectedChannel(adminChannel);
             setChatName("Admin");
         } catch (error) {
             toast.error("Error selecting admin channel");
@@ -237,6 +254,9 @@ export default function Messages() {
                                     </div>
                                     <div className="flex-shrink-0 text-sm text-gray-500">
                                         <span>Support</span>
+                                    </div>
+                                    <div className="flex-shrink-0 text-sm text-gray-500">
+                                        {!adminChannel?.data.isUserRead && <span className="bg-pink-500 text-white px-2 py-1 rounded-full">New</span>}
                                     </div>
                                 </div>
                             </Button>
@@ -318,7 +338,7 @@ export default function Messages() {
                                 </div>
                             </div>
 
-                            <LiveChat channel={selectedChannel} chatClient={chatClient} userRole={"doctor"} messageText={messageText} setMessageText={setMessageText} />
+                            <LiveChat channel={selectedChannel} chatClient={chatClient} userRole={userRole} messageText={messageText} setMessageText={setMessageText} />
                         </div>
                     ) : (
                         <div className="flex items-center justify-center h-full">

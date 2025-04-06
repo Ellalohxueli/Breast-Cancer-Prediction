@@ -8,7 +8,7 @@ import { StreamChat, Message } from "stream-chat";
 interface LiveChatProps {
     channel: Channel;
     chatClient: StreamChat;
-    userRole: "doctor" | "user";
+    userRole: "doctor" | "user" | "userToAdmin" | "adminToUser" | "doctorToAdmin" | "adminToDoctor";
     messageText: string;
     setMessageText: React.Dispatch<React.SetStateAction<string>>;
 }
@@ -17,10 +17,15 @@ export default function LiveChat({ channel, chatClient, userRole, messageText, s
     const handleSendMessage = async () => {
         let updateType: string;
 
-        if (userRole === "doctor") {
+        if (userRole === "doctor" || userRole === "adminToUser") {
             updateType = "isUserRead";
-        } else {
+        } else if (userRole === "user" || userRole === "adminToDoctor") {
             updateType = "isDoctorRead";
+        } else if (userRole === "userToAdmin" || userRole === "doctorToAdmin") {
+            updateType = "isAdminRead";
+        } else {
+            console.error("Invalid user role:", userRole);
+            return;
         }
 
         if (channel && messageText.trim()) {
