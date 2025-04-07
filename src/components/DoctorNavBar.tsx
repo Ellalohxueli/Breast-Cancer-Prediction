@@ -19,6 +19,7 @@ export default function DoctorNavBar() {
     const [chatClient, setChatClient] = useState<any>(null);
     const [userRole, setUserRole] = useState<"doctor" | "user">("user");
     const [unreadCount, setUnreadCount] = useState(0);
+    const [remainingAppointments, setRemainingAppointments] = useState(0);
 
     useCheckCookies();
 
@@ -132,6 +133,30 @@ export default function DoctorNavBar() {
         });
     }, [doctorId]);
 
+    useEffect(() => {
+        const fetchRemainingAppointments = async () => {
+            try {
+                const response = await axios.get('/api/doctors/appointment');
+                if (response.data.success) {
+                    const appointments = response.data.appointments;
+                    const today = new Date();
+                    const remaining = appointments.filter((appointment: any) => {
+                        const appointmentDate = new Date(appointment.dateRange.startDate);
+                        return appointmentDate.toDateString() === today.toDateString() && 
+                               (appointment.status === 'Booked' || appointment.status === 'Ongoing');
+                    }).length;
+                    setRemainingAppointments(remaining);
+                }
+            } catch (error) {
+                console.error('Error fetching remaining appointments:', error);
+            }
+        };
+
+        fetchRemainingAppointments();
+        const interval = setInterval(fetchRemainingAppointments, 60000); // Update every minute
+        return () => clearInterval(interval);
+    }, []);
+
     return (
         <div className={`w-64 shadow-lg flex flex-col justify-between fixed left-0 top-0 h-screen ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
             {/* Top section with logo and navigation */}
@@ -154,7 +179,7 @@ export default function DoctorNavBar() {
                                 href: "/doctordashboard/appointments",
                                 icon: <FiCalendar className="w-5 h-5 mr-4" />,
                                 text: "Appointments",
-                                badge: 2,
+                                badge: remainingAppointments > 0 ? remainingAppointments : null,
                             },
                             { href: "/doctordashboard/patients", icon: <FiUsers className="w-5 h-5 mr-4" />, text: "Patients" },
                             {

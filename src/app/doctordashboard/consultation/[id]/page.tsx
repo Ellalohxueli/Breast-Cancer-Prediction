@@ -45,6 +45,11 @@ export default function ConsultationPage() {
     const [appointmentStartTime, setAppointmentStartTime] = useState<string | null>(null);
     const [appointmentStartDate, setAppointmentStartDate] = useState<string | null>(null);
     const [appointmentDay, setAppointmentDay] = useState<string | null>(null);
+    const [isPredicting, setIsPredicting] = useState(false);
+    const [predictionResult, setPredictionResult] = useState<{
+        prediction: string;
+        confidence: string;
+    } | null>(null);
 
     useEffect(() => {
         const storedName = localStorage.getItem('name');
@@ -93,16 +98,28 @@ export default function ConsultationPage() {
     const handleMammogramUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            // Here you would typically upload the file to your server
-            // For now, we'll just create a local URL
-            const imageUrl = URL.createObjectURL(file);
-            setConsultationData(prev => ({
-                ...prev,
-                mammogram: {
-                    image: imageUrl,
-                    uploadDate: new Date().toISOString()
-                }
-            }));
+            try {
+                // Convert the file to base64 first
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64data = reader.result as string;
+                    console.log('Uploaded image size:', file.size);
+                    console.log('Base64 data length:', base64data.length);
+                    
+                    // Store the base64 data directly
+                    setConsultationData(prev => ({
+                        ...prev,
+                        mammogram: {
+                            image: base64data,
+                            uploadDate: new Date().toISOString()
+                        }
+                    }));
+                };
+                reader.readAsDataURL(file);
+            } catch (error) {
+                console.error('Error processing image:', error);
+                toast.error('Failed to process image');
+            }
         }
     };
 
@@ -189,7 +206,7 @@ export default function ConsultationPage() {
                 }],
                 mammograms: consultationData.mammogram.image ? [{
                     image: consultationData.mammogram.image,
-                    predictionResult: "pending"
+                    predictionResult: predictionResult?.prediction || "No prediction available"
                 }] : [],
                 description: consultationData.report.description,
                 medications: consultationData.report.medications.filter(med => med.trim() !== ''),
@@ -240,6 +257,50 @@ export default function ConsultationPage() {
         }
     };
 
+    const handlePredictMammogram = async () => {
+        if (!consultationData.mammogram.image) {
+            setError('Please upload a mammogram image first');
+            return;
+        }
+
+        setIsPredicting(true);
+        setError(null);
+
+        try {
+            // Use the stored base64 image data directly
+            console.log('Sending image data for prediction...');
+            const predictionResponse = await fetch('/api/predict-mammogram', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    image: consultationData.mammogram.image.split(',')[1], // Remove the data URL prefix
+                    patientId: patientId // Add the patient ID
+                })
+            });
+
+            if (!predictionResponse.ok) {
+                const errorData = await predictionResponse.json();
+                throw new Error(errorData.error || 'Failed to get prediction');
+            }
+
+            const data = await predictionResponse.json();
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            setPredictionResult(data);
+            toast.success('Prediction completed successfully!');
+        } catch (err) {
+            console.error('Error predicting mammogram:', err);
+            const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+            setError(`Failed to predict mammogram: ${errorMessage}`);
+            toast.error(`Prediction failed: ${errorMessage}`);
+        } finally {
+            setIsPredicting(false);
+        }
+    };
+
     return (
         <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'} ${poppins.className}`}>
             <div className="max-w-4xl mx-auto p-6">
@@ -286,6 +347,35 @@ export default function ConsultationPage() {
                                 >
                                     Remove
                                 </button>
+                                <div className="mt-4 flex flex-col items-center space-y-2">
+                                    <button
+                                        onClick={handlePredictMammogram}
+                                        disabled={isPredicting}
+                                        className={`px-4 py-2 rounded-lg ${
+                                            isPredicting
+                                                ? 'bg-gray-400 cursor-not-allowed'
+                                                : isDarkMode
+                                                    ? 'bg-pink-600 text-white hover:bg-pink-700'
+                                                    : 'bg-pink-600 text-white hover:bg-pink-700'
+                                        }`}
+                                    >
+                                        {isPredicting ? 'Predicting...' : 'Predict Mammogram'}
+                                    </button>
+                                    {predictionResult && (
+                                        <div className={`mt-2 p-4 rounded-lg ${
+                                            predictionResult.prediction === 'Malignant' 
+                                                ? 'bg-red-100 text-red-800' 
+                                                : 'bg-green-100 text-green-800'
+                                        }`}>
+                                            <div className="font-semibold">
+                                                Prediction: {predictionResult.prediction}
+                                            </div>
+                                            <div className="text-sm mt-1">
+                                                Confidence: {predictionResult.confidence}%
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         ) : (
                             <div className={`border-2 border-dashed rounded-lg p-8 text-center ${
