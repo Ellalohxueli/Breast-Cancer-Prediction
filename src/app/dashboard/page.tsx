@@ -660,7 +660,7 @@ export default function DashboardPage() {
     return (
         <div id="top" className={`min-h-screen bg-gray-50 ${poppins.className}`}>
             {/* Full width white navigation bar */}
-            <NavBar />
+            <NavBar onProfileClick={handleProfileClick} onNotificationClick={handleNotificationClick} />
 
             {/* Hero Section */}
             <div className="relative h-[600px] w-full">

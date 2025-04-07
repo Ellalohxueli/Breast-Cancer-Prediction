@@ -23,7 +23,12 @@ type NotificationData = {
     updatedAt: string;
 };
 
-export default function NavBar() {
+type NavBarProps = {
+    onProfileClick: () => void;
+    onNotificationClick: (notification: NotificationData) => void;
+};
+
+export default function NavBar({ onProfileClick, onNotificationClick }: NavBarProps) {
     const [messageCount, setMessageCount] = useState(0);
     const [notificationCount, setNotificationCount] = useState(0);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -39,6 +44,47 @@ export default function NavBar() {
     const [channels, setChannels] = useState<any[]>([]);
 
     useCheckCookies();
+
+    useEffect(() => {
+        const fetchInitialNotifications = async () => {
+            try {
+                const response = await axios.get("/api/notifications");
+                if (response.data.success) {
+                    setNotifications(response.data.notifications);
+                    const unreadCount = response.data.notifications.filter((n: NotificationData) => !n.isRead).length;
+                    setNotificationCount(unreadCount);
+                }
+            } catch (error) {
+                console.error("Error fetching initial notifications:", error);
+            }
+        };
+
+        fetchInitialNotifications();
+    }, []);
+
+    useEffect(() => {
+        const fetchNotifications = async () => {
+            if (isDropdownOpen) {
+                setIsLoadingNotifications(true);
+                setNotificationError(null);
+                try {
+                    const response = await axios.get("/api/notifications");
+                    if (response.data.success) {
+                        setNotifications(response.data.notifications);
+                        const unreadCount = response.data.notifications.filter((n: NotificationData) => !n.isRead).length;
+                        setNotificationCount(unreadCount);
+                    }
+                } catch (error) {
+                    console.error("Error fetching notifications:", error);
+                    setNotificationError("Failed to load notifications");
+                } finally {
+                    setIsLoadingNotifications(false);
+                }
+            }
+        };
+
+        fetchNotifications();
+    }, [isDropdownOpen]);
 
     const loadChatClient = async () => {
         const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY;
@@ -74,6 +120,11 @@ export default function NavBar() {
 
     const handleProfileClick = () => {
         setShowProfileMenu(false);
+        onProfileClick();
+    };
+
+    const handleNotificationClick = (notification: NotificationData) => {
+        onNotificationClick(notification);
     };
 
     const handleLogout = async () => {
@@ -98,7 +149,7 @@ export default function NavBar() {
         const filteredChannels = channels
             .filter((channel: any) => channel.id.includes(userId))
             .filter((channel: any) => channel.state.messages && channel.state.messages.length > 0)
-            .filter((channel: any) => !channel.id.includes('admin'));
+            .filter((channel: any) => !channel.id.includes("admin"));
 
         const doctorsData = await Promise.all(
             filteredChannels.map(async (channel: any) => {
@@ -237,7 +288,52 @@ export default function NavBar() {
                                                 <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
                                             </div>
 
-                                            <div className="max-h-96 overflow-y-auto">{/* Notification list goes here */}</div>
+                                            <div className="max-h-96 overflow-y-auto">
+                                                {isLoadingNotifications ? (
+                                                    <div className="flex items-center justify-center py-4">
+                                                        <svg className="animate-spin h-5 w-5 text-gray-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                            <path className="opacity-75" fill="currentColor" d="M4.93 4.93a10 10 0 0114.14 14.14L12 12l-7.07-7.07z"></path>
+                                                        </svg>
+                                                    </div>
+                                                ) : notificationError ? (
+                                                    <div className="text-red-500 text-sm text-center py-4">{notificationError}</div>
+                                                ) : notifications.length === 0 ? (
+                                                    <div className="text-gray-500 text-sm text-center py-4">No notifications</div>
+                                                ) : (
+                                                    notifications.map((notification) => (
+                                                        <button
+                                                            key={notification._id}
+                                                            onClick={() => handleNotificationClick(notification)}
+                                                            className={`flex items-start w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 
+                                                                ${notification.isRead ? "" : "font-semibold"}
+                                                                shadow-sm rounded-md transition duration-200 ease-in-out
+                                                            `}
+                                                        >
+                                                            <span className={`mr-3 ${notification.isRead ? "text-gray-400" : "text-pink-600"}`}>
+                                                                {new Date(notification.createdAt).toLocaleDateString()}
+                                                            </span>
+                                                            <span className="text-left">
+                                                                {notification.status === "cancelled" ? (
+                                                                    <span className="text-gray-900">Appointment Cancelled</span>
+                                                                ) : notification.status === "rescheduled" ? (
+                                                                    <span className="text-gray-900">
+                                                                        Appointment Rescheduled
+                                                                        <br />
+                                                                        {notification.appointmentDate.split("T")[0].split("-").reverse().join("/")} ({notification.appointmentDay})
+                                                                        at {notification.appointmentTime}{" "}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-gray-900">
+                                                                        Appointment Status{" "}
+                                                                        {String(notification.status).charAt(0).toUpperCase() + String(notification.status).slice(1)}
+                                                                    </span>
+                                                                )}
+                                                            </span>
+                                                        </button>
+                                                    ))
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
