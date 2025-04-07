@@ -116,7 +116,7 @@ export default function DoctorNavBar() {
 
             const interval = setInterval(() => {
                 updateUnreadCount();
-            }, 20000);
+            }, 5000);
             return () => clearInterval(interval);
         }
     }, [channels]);

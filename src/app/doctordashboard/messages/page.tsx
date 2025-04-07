@@ -188,7 +188,7 @@ export default function Messages() {
             if (chatClient) {
                 fetchChannels(chatClient);
             }
-        }, 20000);
+        }, 5000);
 
         return () => clearInterval(interval);
     }, [chatClient]);
@@ -251,9 +251,6 @@ export default function Messages() {
                                     </div>
                                     <div className="flex-shrink-0 text-sm text-gray-500">
                                         <span>Support</span>
-                                    </div>
-                                    <div className="flex-shrink-0 text-sm text-gray-500">
-                                        {!adminChannel?.data.isUserRead && <span className="bg-pink-500 text-white px-2 py-1 rounded-full">New</span>}
                                     </div>
                                 </div>
                             </Button>
