@@ -12,6 +12,7 @@ import { Trash2, X } from "lucide-react";
 import toast from "react-hot-toast";
 import LiveChat from "@/components/LiveChat";
 import { set } from "mongoose";
+import axios from "axios";
 
 const poppins = Poppins({
     weight: ["400", "500", "600", "700"],
@@ -29,6 +30,19 @@ interface Doctor {
     image: string;
 }
 
+type NotificationData = {
+    _id: string;
+    doctorId: string;
+    patientId: string;
+    appointmentDate: string;
+    appointmentDay: string;
+    appointmentTime: string;
+    status: "cancelled" | "rescheduled";
+    isRead: boolean;
+    createdAt: string;
+    updatedAt: string;
+};
+
 export default function DoctorChat() {
     const router = useRouter();
     const { doctorId } = useParams();
@@ -38,6 +52,12 @@ export default function DoctorChat() {
     const [userRole, setUserRole] = useState<"doctor" | "user">("user");
     const [doctor, setDoctor] = useState<Doctor | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+    const [showProfileMenu, setShowProfileMenu] = useState(false);
+    const [notifications, setNotifications] = useState<NotificationData[]>([]);
+    const [notificationCount, setNotificationCount] = useState(0);
+    const [selectedNotification, setSelectedNotification] = useState<NotificationData | null>(null);
 
     useCheckCookies();
 
@@ -147,9 +167,34 @@ export default function DoctorChat() {
         }
     };
 
+    const handleProfileClick = () => {
+        setIsProfileModalOpen(true);
+        setShowProfileMenu(false);
+    };
+
+    const handleNotificationClick = async (notification: NotificationData) => {
+        try {
+            if (!notification.isRead) {
+                const response = await axios.put("/api/notifications/read", {
+                    notificationId: notification._id,
+                });
+
+                if (response.data.success) {
+                    setNotifications((prevNotifications) => prevNotifications.map((n) => (n._id === notification._id ? { ...n, isRead: true } : n)));
+                    setNotificationCount((prev) => Math.max(0, prev - 1));
+                }
+            }
+
+            setSelectedNotification(notification);
+            setIsNotificationModalOpen(true);
+        } catch (error) {
+            console.error("Error updating notification read status:", error);
+        }
+    };
+
     return (
         <div className={`min-h-screen bg-gray-50 ${poppins.className}`}>
-            <NavBar />
+            <NavBar onProfileClick={handleProfileClick} onNotificationClick={handleNotificationClick} />
 
             <div className="flex h-full p-15 gap-20">
                 {/* Left Section - Doctor Details */}

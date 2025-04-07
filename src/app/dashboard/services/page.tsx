@@ -489,7 +489,7 @@ export default function ServicesPage() {
     return (
         <div className={`flex flex-col min-h-screen bg-gray-50 ${poppins.className}`}>
             {/* Navigation Bar */}
-            <NavBar />
+            <NavBar onProfileClick={handleProfileClick} onNotificationClick={handleNotificationClick} />
 
             {/* Notification Detail Modal */}
             {isNotificationModalOpen && selectedNotification && (

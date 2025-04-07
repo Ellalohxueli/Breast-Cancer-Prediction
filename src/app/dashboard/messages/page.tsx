@@ -13,11 +13,25 @@ import { useRouter } from "next/navigation";
 import NavBar from "@/components/UserNavBar";
 import Image from "next/image";
 import { generateUsername } from "unique-username-generator";
+import axios from "axios";
 
 const poppins = Poppins({
     weight: ["400", "500", "600", "700"],
     subsets: ["latin"],
 });
+
+type NotificationData = {
+    _id: string;
+    doctorId: string;
+    patientId: string;
+    appointmentDate: string;
+    appointmentDay: string;
+    appointmentTime: string;
+    status: "cancelled" | "rescheduled";
+    isRead: boolean;
+    createdAt: string;
+    updatedAt: string;
+};
 
 export default function Messages() {
     const router = useRouter();
@@ -32,6 +46,12 @@ export default function Messages() {
     const [userId, setUserId] = useState<string>("");
     const [chatName, setChatName] = useState<string>("");
     const [adminChannel, setAdminChannel] = useState<any>(null);
+    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+    const [showProfileMenu, setShowProfileMenu] = useState(false);
+    const [notifications, setNotifications] = useState<NotificationData[]>([]);
+    const [notificationCount, setNotificationCount] = useState(0);
+    const [selectedNotification, setSelectedNotification] = useState<NotificationData | null>(null);
 
     const loadChatClient = async () => {
         const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY;
@@ -232,9 +252,34 @@ export default function Messages() {
         }
     };
 
+    const handleProfileClick = () => {
+        setIsProfileModalOpen(true);
+        setShowProfileMenu(false);
+    };
+
+    const handleNotificationClick = async (notification: NotificationData) => {
+        try {
+            if (!notification.isRead) {
+                const response = await axios.put("/api/notifications/read", {
+                    notificationId: notification._id,
+                });
+
+                if (response.data.success) {
+                    setNotifications((prevNotifications) => prevNotifications.map((n) => (n._id === notification._id ? { ...n, isRead: true } : n)));
+                    setNotificationCount((prev) => Math.max(0, prev - 1));
+                }
+            }
+
+            setSelectedNotification(notification);
+            setIsNotificationModalOpen(true);
+        } catch (error) {
+            console.error("Error updating notification read status:", error);
+        }
+    };
+
     return (
         <div className={`min-h-screen bg-gray-50 ${poppins.className}`}>
-            <NavBar />
+            <NavBar onProfileClick={handleProfileClick} onNotificationClick={handleNotificationClick} />
 
             <div className="flex h-[93vh]">
                 <div className="w-2/5 bg-white p-4 border-r h-full overflow-y-auto">

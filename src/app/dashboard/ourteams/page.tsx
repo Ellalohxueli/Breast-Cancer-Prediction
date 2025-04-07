@@ -479,7 +479,7 @@ export default function OurTeamsPage() {
 
     return (
         <div className={`min-h-screen bg-gray-50 ${poppins.className}`}>
-            <NavBar />
+            <NavBar onProfileClick={handleProfileClick} onNotificationClick={handleNotificationClick} />
 
             {/* Hero Section */}
             <div className="bg-gradient-to-r from-gray-50 to-white">

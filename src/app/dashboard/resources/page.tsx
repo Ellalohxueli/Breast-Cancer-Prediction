@@ -660,7 +660,7 @@ export default function ResourcesPage() {
     return (
         <div id="top" className={`min-h-screen bg-gray-50 ${poppins.className}`}>
             {/* Header */}
-            <NavBar />
+            <NavBar onProfileClick={handleProfileClick} onNotificationClick={handleNotificationClick} />
 
             {/* Hero Section */}
             <div className="bg-gradient-to-b from-pink-50 to-white pt-12 pb-8">
