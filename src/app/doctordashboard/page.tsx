@@ -969,16 +969,16 @@ export default function DoctorDashboard() {
                         {/* Main Dashboard Content */}
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                             {/* Today's Appointments Section - Left Column */}
-                            <div className={`lg:col-span-2 ${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-sm`}>
-                                <div className="flex flex-col h-[calc(90vh-220px)]">
-                                    <div className={`p-6 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                            <div className={`lg:col-span-2 ${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-sm h-[calc(100vh-0px)]`}>
+                                <div className="flex flex-col h-full">
+                                    <div className={`p-4 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                                         <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                                             Today's Appointments
                                         </h2>
                                     </div>
 
                                     {/* Appointments List - Make it scrollable */}
-                                    <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
                                         {isLoadingAppointments ? (
                                             <div className="flex justify-center items-center h-full">
                                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-600"></div>

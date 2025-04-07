@@ -11,6 +11,7 @@ import useCheckCookies from '@/controller/UseCheckCookie';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import NavBar from '@/components/UserNavBar';
+import jsPDF from 'jspdf';
 
 const poppins = Poppins({
     weight: ['400', '500', '600', '700'],
@@ -128,6 +129,10 @@ export default function AppointmentsPage() {
         reviewComment?: string;
     }>({});
     const [reviewSuccessMessage, setReviewSuccessMessage] = useState(false);
+    const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+    const [reportData, setReportData] = useState<any>(null);
+    const [isLoadingReport, setIsLoadingReport] = useState(false);
+    const [reportError, setReportError] = useState<string | null>(null);
 
     useCheckCookies();
 
@@ -635,6 +640,289 @@ export default function AppointmentsPage() {
         }
     };
 
+    const fetchReportData = async (appointmentId: string) => {
+        setIsLoadingReport(true);
+        setReportError(null);
+        try {
+            const response = await axios.get(`/api/reports/${appointmentId}`);
+            if (response.data.success) {
+                // Ensure we have all the required data
+                const reportData = {
+                    ...response.data.report,
+                    appointment: response.data.report.appointment || {
+                        dateRange: { startDate: new Date().toISOString() },
+                        timeSlot: { startTime: '00:00' },
+                        appointmentType: 'N/A',
+                        doctor: { name: 'N/A' }
+                    }
+                };
+                setReportData(reportData);
+                setIsReportModalOpen(true);
+            } else {
+                setReportError('Failed to load report data');
+            }
+        } catch (error: any) {
+            console.error('Error fetching report:', error);
+            setReportError(error.response?.data?.error || 'Failed to load report data');
+        } finally {
+            setIsLoadingReport(false);
+        }
+    };
+
+    const handleDownloadReport = async (report: any) => {
+        if (!report) return;
+
+        try {
+            // Log the report data structure
+            console.log('Report Data Structure:', {
+                timeSlot: report.appointment?.dateRange?.timeSlot,
+                startTime: report.appointment?.dateRange?.timeSlot?.startTime
+            });
+
+            // Create a new PDF document (A4 size in portrait orientation)
+            const doc = new jsPDF();
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+            const margin = 15;
+            const contentWidth = pageWidth - (margin * 2);
+            const lineHeight = 5;
+            let yPos = 15;
+
+            // Function to load image
+            const loadImage = (url: string): Promise<HTMLImageElement> => {
+                return new Promise((resolve, reject) => {
+                    const img = new window.Image();
+                    img.crossOrigin = 'Anonymous';
+                    img.onload = () => resolve(img);
+                    img.onerror = reject;
+                    img.src = url;
+                });
+            };
+
+            // Header with Logo and Title on the same level
+            try {
+                // Load logo
+                const logoImg = await loadImage('/logo.png');
+                const logoWidth = 20;
+                const logoHeight = logoWidth * (logoImg.height / logoImg.width);
+                
+                // Add logo on the left
+                doc.addImage(logoImg, 'PNG', margin, yPos, logoWidth, logoHeight);
+                
+                // Add title next to the logo
+                doc.setFontSize(16);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Mammogram Report', margin + logoWidth + 3, yPos + (logoHeight/2) + 1);
+                
+                // Add a horizontal line below the header
+                yPos += logoHeight + 5;
+                doc.setDrawColor(220, 220, 220);
+                doc.line(margin, yPos, pageWidth - margin, yPos);
+                yPos += 5;
+            } catch (logoError) {
+                // If logo fails to load, just add the title
+                doc.setFontSize(16);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Mammogram Report', pageWidth / 2, yPos, { align: 'center' });
+                yPos += lineHeight * 2;
+            }
+
+            // Appointment Information Section
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Appointment Information', margin, yPos);
+            yPos += lineHeight * 0.8;
+            
+            // Line under section title
+            doc.setDrawColor(220, 220, 220);
+            doc.line(margin, yPos, pageWidth - margin, yPos);
+            yPos += lineHeight;
+            
+            // Add a light gray background rectangle for the content
+            doc.setFillColor(249, 250, 251); // very light gray
+            const apptHeight = 25;
+            doc.rect(margin, yPos, contentWidth, apptHeight, 'F');
+            
+            // Add appointment details
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            
+            // Format date and time
+            const appointmentDate = new Date(report.appointment?.dateRange?.startDate || report.createdAt);
+            const formattedDate = appointmentDate.toLocaleDateString('en-US', {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+
+            // Get the appointment time from the correct location
+            const appointmentTime = report.appointment?.dateRange?.timeSlot?.startTime 
+                ? formatTime(report.appointment.dateRange.timeSlot.startTime)
+                : 'N/A';
+
+            console.log('Time Formatting:', {
+                rawTime: report.appointment?.dateRange?.timeSlot?.startTime,
+                formattedTime: appointmentTime
+            });
+            
+            // Add appointment details with proper spacing
+            doc.text(`Doctor: ${report.appointment?.doctor?.name || 'N/A'}`, margin + 5, yPos + 5);
+            doc.text(`Date: ${formattedDate}`, margin + 5, yPos + 10);
+            doc.text(`Time: ${appointmentTime}`, margin + 5, yPos + 15);
+            doc.text(`Type: ${report.appointment?.appointmentType || 'N/A'}`, margin + 5, yPos + 20);
+            
+            yPos += apptHeight + lineHeight;
+            
+            // Mammogram Analysis Section
+            if (report.mammograms && report.mammograms.length > 0) {
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Mammogram Analysis', margin, yPos);
+                yPos += lineHeight * 0.8;
+                
+                // Line under section title
+                doc.setDrawColor(220, 220, 220);
+                doc.line(margin, yPos, pageWidth - margin, yPos);
+                yPos += lineHeight;
+
+                // Load and add mammogram image
+                try {
+                    // Use first mammogram
+                    const mammogram = report.mammograms[0];
+                    const mammogramImg = await loadImage(mammogram.image);
+                    
+                    // Calculate dimensions to fit within column width while maintaining aspect ratio
+                    const maxImageWidth = contentWidth - 30;
+                    const maxImageHeight = 65; // Maximum height for the image
+                    
+                    let imgWidth = maxImageWidth;
+                    let imgHeight = imgWidth * (mammogramImg.height / mammogramImg.width);
+                    
+                    // If the height exceeds the maximum, scale down
+                    if (imgHeight > maxImageHeight) {
+                        imgHeight = maxImageHeight;
+                        imgWidth = imgHeight * (mammogramImg.width / mammogramImg.height);
+                    }
+                    
+                    // Center the image horizontally
+                    const xPos = (pageWidth - imgWidth) / 2;
+                    doc.addImage(mammogramImg, 'JPEG', xPos, yPos, imgWidth, imgHeight);
+                    
+                    // Adjust position after image
+                    yPos += imgHeight + lineHeight;
+
+                    // Add prediction result with appropriate background
+                    const resultText = `Prediction: ${mammogram.predictionResult}`;
+                    
+                    // Different styling based on prediction result
+                    if (mammogram.predictionResult === 'Benign') {
+                        doc.setFillColor(240, 249, 244); // light green background
+                        doc.setTextColor(22, 101, 52); // green text
+                    } else if (mammogram.predictionResult === 'Malignant') {
+                        doc.setFillColor(254, 242, 242); // light red background
+                        doc.setTextColor(153, 27, 27); // red text
+                    } else {
+                        doc.setFillColor(241, 245, 249); // light gray background
+                        doc.setTextColor(71, 85, 105); // gray text
+                    }
+                    
+                    // Draw rounded rectangle for the result
+                    doc.setFontSize(9);
+                    const textWidth = doc.getTextWidth(resultText) + 8;
+                    const rectX = (pageWidth - textWidth) / 2;
+                    doc.roundedRect(rectX - 3, yPos - 4, textWidth + 6, 12, 3, 3, 'F');
+                    
+                    // Add the text
+                    doc.setFont('helvetica', 'bold');
+                    doc.text(resultText, pageWidth / 2, yPos + 2, { align: 'center' });
+                    
+                    // Reset text color
+                    doc.setTextColor(0, 0, 0);
+                    yPos += lineHeight * 3;
+                } catch (imageError) {
+                    doc.setFontSize(8);
+                    doc.text('Mammogram image could not be loaded', margin, yPos);
+                    yPos += lineHeight * 2;
+                }
+            }
+
+            // Medical Description Section
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Medical Description', margin, yPos);
+            yPos += lineHeight * 0.8;
+            
+            // Line under section title
+            doc.setDrawColor(220, 220, 220);
+            doc.line(margin, yPos, pageWidth - margin, yPos);
+            yPos += lineHeight;
+            
+            // Add a light gray background rectangle for the content
+            doc.setFillColor(249, 250, 251); // very light gray
+            const descHeight = 25;
+            doc.rect(margin, yPos, contentWidth, descHeight, 'F');
+            
+            // Wrap text for description
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            const splitDescription = doc.splitTextToSize(report.description || 'No description available', contentWidth - 10);
+            doc.text(splitDescription, margin + 5, yPos + 5);
+            yPos += descHeight + lineHeight;
+
+            // Medications Section
+            if (report.medications && report.medications.length > 0) {
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Prescribed Medications', margin, yPos);
+                yPos += lineHeight * 0.8;
+                
+                // Line under section title
+                doc.setDrawColor(220, 220, 220);
+                doc.line(margin, yPos, pageWidth - margin, yPos);
+                yPos += lineHeight;
+                
+                // Add a light gray background rectangle for the content
+                doc.setFillColor(249, 250, 251); // very light gray
+                const medHeight = Math.min(20, report.medications.length * lineHeight + 6);
+                doc.rect(margin, yPos, contentWidth, medHeight, 'F');
+
+                // Add medications list
+                doc.setFontSize(8);
+                doc.setFont('helvetica', 'normal');
+                
+                const maxDisplay = 3; // Limit medications display to fit on one page
+                const displayedMeds = report.medications.slice(0, maxDisplay);
+                
+                displayedMeds.forEach((medication: string, i: number) => {
+                    doc.text(`• ${medication}`, margin + 5, yPos + 6 + (i * lineHeight));
+                });
+                
+                // Show count of remaining medications if any
+                if (report.medications.length > maxDisplay) {
+                    doc.text(`• ... and ${report.medications.length - maxDisplay} more`, 
+                        margin + 5, yPos + 6 + (maxDisplay * lineHeight));
+                }
+                
+                yPos += medHeight + lineHeight;
+            }
+
+            // Add footer
+            doc.setFontSize(7);
+            doc.setFont('helvetica', 'italic');
+            doc.setTextColor(150, 150, 150);
+            doc.text('This is a computer-generated report. For any queries, please contact your healthcare provider.', 
+                pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+            // Save the PDF with a filename based on the appointment date
+            const fileName = `mammogram-report-${formattedDate.replace(/,/g, '')}.pdf`;
+            doc.save(fileName);
+            toast.success('Report downloaded successfully');
+        } catch (error) {
+            toast.error('Failed to download report');
+        }
+    };
+
     return (
         <div className={`min-h-screen bg-gray-50 ${poppins.className}`}>
             {/* Full width white navigation bar */}
@@ -884,7 +1172,7 @@ export default function AppointmentsPage() {
                                                     {appointment.status === 'Completed' && (
                                                         <div className="flex space-x-4">
                                                             <button 
-                                                                onClick={() => router.push(`/dashboard/reports/${appointment._id}`)}
+                                                                onClick={() => fetchReportData(appointment._id)}
                                                                 className="px-4 py-2.5 text-sm font-medium text-blue-600 border border-blue-600 rounded-md hover:bg-blue-50 transition-colors"
                                                             >
                                                                 View Report
@@ -1386,6 +1674,115 @@ export default function AppointmentsPage() {
                         {reviewSuccessMessage && (
                             <div className="absolute top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg">
                                 Review submitted successfully!
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Report Modal */}
+            {isReportModalOpen && (
+                <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
+                    <div className="bg-white/95 rounded-lg p-8 w-full max-w-4xl max-h-[90vh] overflow-y-auto relative shadow-xl backdrop-blur-sm border border-gray-200">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-bold text-gray-800">Medical Report</h2>
+                            <button
+                                onClick={() => {
+                                    setIsReportModalOpen(false);
+                                    setReportData(null);
+                                }}
+                                className="text-gray-400 hover:text-gray-500 transition-colors"
+                            >
+                                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {isLoadingReport ? (
+                            <div className="flex items-center justify-center py-8">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-600"></div>
+                            </div>
+                        ) : reportError ? (
+                            <div className="text-center py-8">
+                                <p className="text-red-600">{reportError}</p>
+                            </div>
+                        ) : reportData && (
+                            <div className="space-y-6">
+                                {/* Last Updated */}
+                                <div className="text-sm text-gray-500">
+                                    Last updated: {reportData.updatedAt.split('T')[0]}, {new Date(reportData.updatedAt).toLocaleString('en-US', {
+                                        hour: 'numeric',
+                                        minute: '2-digit',
+                                        hour12: true,
+                                        timeZone: 'UTC'
+                                    })}
+                                </div>
+
+                                {/* Mammogram Section */}
+                                {reportData.mammograms && reportData.mammograms.length > 0 && (
+                                    <div className="border-t border-gray-200 pt-6">
+                                        <h3 className="text-lg font-semibold mb-4">Mammogram Results</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {reportData.mammograms.map((mammogram: any, index: number) => (
+                                                <div key={index} className="border rounded-lg p-4">
+                                                    <div className="aspect-w-16 aspect-h-9 mb-4">
+                                                        <Image
+                                                            src={mammogram.image}
+                                                            alt="Mammogram"
+                                                            width={400}
+                                                            height={300}
+                                                            className="rounded-lg object-cover"
+                                                        />
+                                                    </div>
+                                                    <div className="mt-2">
+                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                                            mammogram.predictionResult === 'Malignant' 
+                                                                ? 'bg-red-100 text-red-800'
+                                                                : 'bg-green-100 text-green-800'
+                                                        }`}>
+                                                            {mammogram.predictionResult}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Description Section */}
+                                <div className="border-t border-gray-200 pt-6">
+                                    <h3 className="text-lg font-semibold mb-4">Medical Description</h3>
+                                    <div className="bg-gray-50 rounded-lg p-4">
+                                        <p className="text-gray-700 whitespace-pre-wrap">{reportData.description}</p>
+                                    </div>
+                                </div>
+
+                                {/* Medications Section */}
+                                {reportData.medications && reportData.medications.length > 0 && (
+                                    <div className="border-t border-gray-200 pt-6">
+                                        <h3 className="text-lg font-semibold mb-4">Prescribed Medications</h3>
+                                        <ul className="list-disc pl-5 space-y-2">
+                                            {reportData.medications.map((medication: string, index: number) => (
+                                                <li key={index} className="text-gray-700">{medication}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* Footer with download button */}
+                                <div className="mt-6 pt-4 border-t border-gray-200 flex justify-center">
+                                    <button
+                                        onClick={() => handleDownloadReport(reportData)}
+                                        className="inline-flex items-center px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
+                                        disabled={isLoadingReport}
+                                    >
+                                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                        </svg>
+                                        Download Report
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>
