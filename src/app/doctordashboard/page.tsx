@@ -38,6 +38,29 @@ interface BookedAppointment {
     };
     appointmentType: string;
     status: string;
+    patientReports?: {
+        appointmentId: string;
+        report: {
+            _id: string;
+            patientId: string;
+            appointments: {
+                doctorId: string;
+                appointmentId: string;
+                dateRange: {
+                    startDate: string;
+                };
+                appointmentType: string;
+            }[];
+            mammograms: {
+                image: string;
+                predictionResult: string;
+            }[];
+            description: string;
+            medications: string[];
+            createdAt: string;
+            updatedAt: string;
+        } | null;
+    }[];
 }
 
 interface Review {
@@ -670,8 +693,20 @@ export default function DoctorDashboard() {
 
     const handleVisitClick = async (appointment: BookedAppointment) => {
         try {
+            // Log the appointment details
+            console.log('Selected Appointment Details:', {
+                appointmentId: appointment._id,
+                patientId: appointment.patient._id,
+                patientName: `${appointment.patient.firstname} ${appointment.patient.lastname}`,
+                date: appointment.dateRange.startDate,
+                timeSlot: appointment.timeSlot,
+                status: appointment.status,
+                appointmentType: appointment.appointmentType
+            });
+
             // Update appointment status to "Ongoing"
             const response = await axios.put(`/api/doctors/appointment/${appointment._id}`);
+            console.log('Appointment status update response:', response.data);
 
             if (response.data.success) {
                 // Update local state
@@ -685,13 +720,32 @@ export default function DoctorDashboard() {
 
                 // Update doctor status to "Busy"
                 await updateDoctorStatus('Busy');
+                console.log('Doctor status updated to Busy');
 
-                // Open medical pass modal
-                setSelectedPatientForVisit(appointment);
+                // Fetch completed appointments for the patient
+                const patientAppointmentsResponse = await axios.get(`/api/doctors/appointment/patient/${appointment.patient._id}`);
+                console.log('Patient completed appointments:', patientAppointmentsResponse.data);
+
+                // Create a new appointment object with the patient appointments
+                const appointmentWithHistory = {
+                    ...appointment,
+                    patientReports: patientAppointmentsResponse.data.patientReports || []
+                };
+
+                // Open medical pass modal with the updated appointment data
+                setSelectedPatientForVisit(appointmentWithHistory);
                 setIsMedicalPassModalOpen(true);
+                console.log('Medical pass modal opened with appointment:', {
+                    appointment: appointmentWithHistory,
+                    lastVisitDate: patientAppointmentsResponse.data.patientReports?.[0]?.report?.createdAt
+                });
             }
         } catch (error: any) {
-            console.error('Error updating appointment status:', error);
+            console.error('Error in handleVisitClick:', {
+                error: error.message,
+                response: error.response?.data,
+                appointmentId: appointment._id
+            });
             toast.error(error.response?.data?.error || 'Failed to update appointment status');
         }
     };
@@ -1680,36 +1734,17 @@ export default function DoctorDashboard() {
                                     <div className={`space-y-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                                         <div className="flex justify-between items-center">
                                             <span>Last Visit</span>
-                                            <span>March 15, 2024</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span>Blood Type</span>
-                                            <span>O+</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span>Allergies</span>
-                                            <span>None</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span>Chronic Conditions</span>
-                                            <span>None</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Recent Medications */}
-                                <div className="mb-6">
-                                    <h3 className={`text-lg font-medium mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                        Recent Medications
-                                    </h3>
-                                    <div className={`space-y-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                                        <div className="flex justify-between items-center">
-                                            <span>Vitamin D</span>
-                                            <span>1000 IU daily</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span>Calcium</span>
-                                            <span>500mg daily</span>
+                                            <span>
+                                                {selectedPatientForVisit.patientReports && 
+                                                 selectedPatientForVisit.patientReports.length > 0 &&
+                                                 selectedPatientForVisit.patientReports[0].report?.createdAt
+                                                    ? new Date(selectedPatientForVisit.patientReports[0].report.createdAt).toLocaleDateString('en-US', {
+                                                        year: 'numeric',
+                                                        month: 'long',
+                                                        day: 'numeric'
+                                                    })
+                                                    : 'No previous visits'}
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
@@ -1719,15 +1754,71 @@ export default function DoctorDashboard() {
                                     <h3 className={`text-lg font-medium mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                                         Recent Test Results
                                     </h3>
+                                    <div className="space-y-4">
+                                        {selectedPatientForVisit.patientReports && selectedPatientForVisit.patientReports.length > 0 ? (
+                                            <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow`}>
+                                                <div className="flex items-center space-x-4 mb-4">
+                                                    <div className="relative w-24 h-24">
+                                                        {selectedPatientForVisit.patientReports[0].report?.mammograms && selectedPatientForVisit.patientReports[0].report.mammograms.length > 0 ? (
+                                                            <Image
+                                                                src={selectedPatientForVisit.patientReports[0].report.mammograms[0].image}
+                                                                alt="Mammogram"
+                                                                fill
+                                                                className="object-cover rounded-lg"
+                                                            />
+                                                        ) : (
+                                                            <div className={`w-full h-full flex items-center justify-center rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                                                                <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>N/A</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <p className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                                            {selectedPatientForVisit.patientReports[0].report?.mammograms && selectedPatientForVisit.patientReports[0].report.mammograms.length > 0 
+                                                                ? selectedPatientForVisit.patientReports[0].report.mammograms[0].predictionResult 
+                                                                : 'N/A'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                                    <p>{selectedPatientForVisit.patientReports[0].report?.description || 'No description available'}</p>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                No test results available
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Medications */}
+                                <div className="mb-6">
+                                    <h3 className={`text-lg font-medium mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                        Medications
+                                    </h3>
                                     <div className={`space-y-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                                        <div className="flex justify-between items-center">
-                                            <span>Mammogram</span>
-                                            <span>Normal (March 1, 2024)</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span>Blood Pressure</span>
-                                            <span>120/80 (March 15, 2024)</span>
-                                        </div>
+                                        {selectedPatientForVisit.patientReports && selectedPatientForVisit.patientReports.length > 0 ? (
+                                            <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow`}>
+                                                <div className="space-y-2">
+                                                    {selectedPatientForVisit.patientReports[0].report?.medications && selectedPatientForVisit.patientReports[0].report.medications.length > 0 ? (
+                                                        selectedPatientForVisit.patientReports[0].report.medications.map((medication, medIndex) => (
+                                                            <div key={medIndex} className="flex items-center space-x-2">
+                                                                <span className="text-sm">{medication}</span>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                            N/A
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                No medications recorded
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </div>

@@ -1575,6 +1575,7 @@ export default function AppointmentsPage() {
                                                     <input
                                                         type="date"
                                                         name="start-date"
+                                                        min={new Date().toISOString().split('T')[0]}
                                                         className={`w-full rounded-lg border text-base ${
                                                             isDarkMode ? "bg-gray-700 border-gray-600 text-gray-200" : "bg-white border-gray-300 text-gray-900"
                                                         } px-3 py-2`}
@@ -1585,6 +1586,7 @@ export default function AppointmentsPage() {
                                                     <input
                                                         type="date"
                                                         name="end-date"
+                                                        min={new Date().toISOString().split('T')[0]}
                                                         className={`w-full rounded-lg border text-base ${
                                                             isDarkMode ? "bg-gray-700 border-gray-600 text-gray-200" : "bg-white border-gray-300 text-gray-900"
                                                         } px-3 py-2`}

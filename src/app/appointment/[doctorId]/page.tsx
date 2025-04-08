@@ -593,6 +593,7 @@ export default function AppointmentPage() {
                         className="border border-gray-300 rounded-md p-2"
                         value={selectedDate}
                         onChange={(e) => setSelectedDate(e.target.value)}
+                        min={new Date().toISOString().split('T')[0]}
                     />
                 </div>
 
