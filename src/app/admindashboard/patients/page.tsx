@@ -47,6 +47,47 @@ interface Patient {
     sex: string;
     phone: string | number;
     email: string;
+    lastAppointment?: {
+        dateRange: {
+            startDate: string;
+            endDate: string;
+        };
+        doctorName: string;
+        reason: string;
+        status: string;
+        timeSlot: {
+            startTime: string;
+            endTime: string;
+        };
+    };
+    nextAppointment?: {
+        dateRange: {
+            startDate: string;
+            endDate: string;
+        };
+        doctorName: string;
+        reason: string;
+        timeSlot: {
+            startTime: string;
+            endTime: string;
+        };
+    };
+    report?: {
+        description: string;
+        medications: string[];
+        mammograms: {
+            image: string;
+            predictionResult: string;
+        }[];
+        appointments: {
+            appointmentId: string;
+            doctorId: string;
+            date: string;
+            day: string;
+            time: string;
+            type: string;
+        }[];
+    };
 }
 
 export default function PatientsPage() {
@@ -191,9 +232,177 @@ export default function PatientsPage() {
     }, []);
 
     // Update the handleViewPatient function
-    const handleViewPatient = (patient: Patient) => {
-        setSelectedPatient(patient);
-        setIsViewModalOpen(true);
+    const handleViewPatient = async (patient: Patient) => {
+        try {
+            console.log('Fetching all appointments for patient:', {
+                patientId: patient._id,
+                patientName: patient.firstname + ' ' + patient.lastname
+            });
+            
+            // Fetch appointments
+            const appointmentsResponse = await axios.get(`/api/admin/appointments/patient/${patient._id}`);
+            console.log('Raw appointments API response:', appointmentsResponse.data);
+
+            if (appointmentsResponse.data.success) {
+                const appointments = appointmentsResponse.data.appointments;
+                console.log('All appointments for patient:', {
+                    patientName: patient.firstname + ' ' + patient.lastname,
+                    totalAppointments: appointments.length,
+                    appointments: appointments.map((appt: any) => ({
+                        appointmentId: appt._id,
+                        date: new Date(appt.dateRange.startDate).toLocaleDateString(),
+                        time: `${appt.timeSlot.startTime} - ${appt.timeSlot.endTime}`,
+                        doctor: appt.doctorName,
+                        reason: appt.reason,
+                        status: appt.status,
+                        notes: appt.notes || 'No notes'
+                    }))
+                });
+
+                // Sort completed appointments by start date in descending order
+                const completedAppointments = appointments
+                    .filter((appt: any) => appt.status === 'Completed')
+                    .sort((a: any, b: any) => 
+                        new Date(b.dateRange.startDate).getTime() - new Date(a.dateRange.startDate).getTime()
+                    );
+                
+                // Get the most recent completed appointment
+                const lastAppointment = completedAppointments[0];
+                console.log('Latest completed appointment details:', lastAppointment ? {
+                    appointmentId: lastAppointment._id,
+                    date: new Date(lastAppointment.dateRange.startDate).toLocaleDateString(),
+                    time: `${lastAppointment.timeSlot.startTime} - ${lastAppointment.timeSlot.endTime}`,
+                    doctor: lastAppointment.doctorName,
+                    reason: lastAppointment.reason,
+                    status: lastAppointment.status
+                } : 'No completed appointments found');
+
+                // Get upcoming appointments (Booked or Ongoing) sorted by start date
+                const upcomingAppointments = appointments
+                    .filter((appt: any) => appt.status === 'Booked' || appt.status === 'Ongoing')
+                    .sort((a: any, b: any) => 
+                        new Date(a.dateRange.startDate).getTime() - new Date(b.dateRange.startDate).getTime()
+                    );
+                
+                // Get the next appointment
+                const nextAppointment = upcomingAppointments[0];
+                console.log('Next appointment details:', nextAppointment ? {
+                    date: new Date(nextAppointment.dateRange.startDate).toLocaleDateString(),
+                    time: `${nextAppointment.timeSlot.startTime} - ${nextAppointment.timeSlot.endTime}`,
+                    doctor: nextAppointment.doctorName,
+                    reason: nextAppointment.reason,
+                    status: nextAppointment.status
+                } : 'No upcoming appointments found');
+
+                // Fetch patient report using the latest completed appointment ID
+                let reportData = null;
+                if (lastAppointment) {
+                    // First try with the appointment ID
+                    let reportResponse = await axios.put(`/api/admin/appointments/patient/${patient._id}`, {
+                        appointmentId: lastAppointment._id
+                    });
+                    console.log('Raw report API response with appointmentId:', reportResponse.data);
+
+                    // If no report found, try with the patient ID
+                    if (!reportResponse.data.success || !reportResponse.data.report) {
+                        console.log('No report found with appointmentId, trying with patientId');
+                        reportResponse = await axios.put(`/api/admin/appointments/patient/${patient._id}`, {
+                            appointmentId: patient._id
+                        });
+                        console.log('Raw report API response with patientId:', reportResponse.data);
+                    }
+
+                    if (reportResponse.data.success && reportResponse.data.report) {
+                        reportData = reportResponse.data.report;
+                        // Match the appointment ID from the report with the latest completed appointment
+                        const matchingAppointment = reportData.appointments.find(
+                            (appt: any) => appt.appointmentId === lastAppointment._id || appt.appointmentId === patient._id
+                        );
+                        
+                        console.log('Patient Report Details:', {
+                            patientName: patient.firstname + ' ' + patient.lastname,
+                            appointmentId: lastAppointment._id,
+                            matchingAppointmentId: matchingAppointment ? matchingAppointment.appointmentId : 'No matching appointment found',
+                            appointmentDate: new Date(lastAppointment.dateRange.startDate).toLocaleDateString(),
+                            description: reportData.description,
+                            medications: reportData.medications,
+                            mammogramResults: reportData.mammograms.map((mammo: any) => ({
+                                predictionResult: mammo.predictionResult
+                            }))
+                        });
+
+                        // Log detailed report information
+                        console.log('Detailed Report Information:', {
+                            reportId: reportData._id,
+                            patientId: reportData.patientId,
+                            appointments: reportData.appointments.map((appt: any) => ({
+                                appointmentId: appt.appointmentId,
+                                doctorId: appt.doctorId,
+                                date: new Date(appt.dateRange.startDate).toLocaleDateString(),
+                                day: appt.dateRange.day,
+                                time: appt.dateRange.timeSlot.startTime,
+                                type: appt.appointmentType
+                            })),
+                            mammograms: reportData.mammograms.map((mammo: any) => ({
+                                image: mammo.image ? 'Image available' : 'No image',
+                                predictionResult: mammo.predictionResult
+                            })),
+                            description: reportData.description,
+                            medications: reportData.medications,
+                            createdAt: new Date(reportData.createdAt).toLocaleString(),
+                            updatedAt: new Date(reportData.updatedAt).toLocaleString()
+                        });
+
+                        // Log appointment-specific report data
+                        if (matchingAppointment) {
+                            console.log('Appointment-Specific Report Data:', {
+                                appointmentId: matchingAppointment.appointmentId,
+                                doctorId: matchingAppointment.doctorId,
+                                date: new Date(matchingAppointment.dateRange.startDate).toLocaleDateString(),
+                                day: matchingAppointment.dateRange.day,
+                                time: matchingAppointment.dateRange.timeSlot.startTime,
+                                type: matchingAppointment.appointmentType,
+                                description: reportData.description,
+                                medications: reportData.medications,
+                                mammogramResults: reportData.mammograms.map((mammo: any) => ({
+                                    predictionResult: mammo.predictionResult
+                                }))
+                            });
+                        }
+                    } else {
+                        console.log('No report found for appointment:', lastAppointment._id);
+                    }
+                }
+
+                // Update patient with appointment and report data
+                const updatedPatient = {
+                    ...patient,
+                    lastAppointment: lastAppointment ? {
+                        dateRange: lastAppointment.dateRange,
+                        doctorName: lastAppointment.doctorName,
+                        reason: lastAppointment.reason,
+                        status: lastAppointment.status,
+                        timeSlot: lastAppointment.timeSlot
+                    } : undefined,
+                    nextAppointment: nextAppointment ? {
+                        dateRange: nextAppointment.dateRange,
+                        doctorName: nextAppointment.doctorName,
+                        reason: nextAppointment.reason,
+                        status: nextAppointment.status,
+                        timeSlot: nextAppointment.timeSlot
+                    } : undefined,
+                    report: reportData
+                };
+
+                setSelectedPatient(updatedPatient);
+                setIsViewModalOpen(true);
+            }
+        } catch (error) {
+            console.error('Error fetching patient data:', error);
+            // Still show the modal with basic patient info even if appointments or report fail to load
+            setSelectedPatient(patient);
+            setIsViewModalOpen(true);
+        }
     };
 
     // Update the search functionality
@@ -611,6 +820,73 @@ export default function PatientsPage() {
                                     <div>
                                         <label className={`block text-sm font-medium ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>Email</label>
                                         <p className={`mt-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>{selectedPatient.email}</p>
+                                    </div>
+                                </div>
+
+                                {/* Divider */}
+                                <div className={`my-6 border-t ${isDarkMode ? "border-gray-700" : "border-gray-200"}`} />
+
+                                {/* Medical & Appointment Information */}
+                                <div>
+                                    <h3 className={`text-lg font-semibold mb-4 ${isDarkMode ? "text-white" : "text-gray-900"}`}>Medical & Appointment Information</h3>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className={`block text-sm font-medium ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>Last Checkup</label>
+                                            <p className={`mt-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                                                {selectedPatient.lastAppointment ? (
+                                                    new Date(selectedPatient.lastAppointment.dateRange.startDate).toLocaleDateString()
+                                                ) : 'No previous appointments'}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <label className={`block text-sm font-medium ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>Next Appointment</label>
+                                            <div className={`mt-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                                                {selectedPatient.nextAppointment ? (
+                                                    <div className="text-sm">
+                                                        {new Date(selectedPatient.nextAppointment.dateRange.startDate).toLocaleDateString('en-US', {
+                                                            month: '2-digit',
+                                                            day: '2-digit',
+                                                            year: 'numeric'
+                                                        })}, {new Date(`2000-01-01T${selectedPatient.nextAppointment.timeSlot.startTime}`).toLocaleTimeString('en-US', {
+                                                            hour: 'numeric',
+                                                            minute: '2-digit',
+                                                            hour12: true
+                                                        })}
+                                                    </div>
+                                                ) : 'No upcoming appointments'}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className={`block text-sm font-medium ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>Primary Doctor</label>
+                                            <p className={`mt-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                                                {selectedPatient.lastAppointment?.doctorName || 'Not assigned'}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <label className={`block text-sm font-medium ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>Diagnosis Report</label>
+                                            <div className={`mt-1 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                                                {selectedPatient.report ? (
+                                                    <div className="text-sm space-y-2">
+                                                        <div>{selectedPatient.report.description || 'No diagnosis recorded'}</div>
+                                                        {selectedPatient.report.medications && selectedPatient.report.medications.length > 0 && (
+                                                            <div>
+                                                                <div className="font-medium">Medications:</div>
+                                                                <ul className="list-disc pl-5">
+                                                                    {selectedPatient.report.medications.map((medication, index) => (
+                                                                        <li key={index}>{medication}</li>
+                                                                    ))}
+                                                                </ul>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : selectedPatient.lastAppointment ? (
+                                                    <div className="text-sm space-y-1">
+                                                        <div>Last visit: {new Date(selectedPatient.lastAppointment.dateRange.startDate).toLocaleDateString()}</div>
+                                                        <div>Diagnosis: {selectedPatient.lastAppointment.reason || 'No diagnosis recorded'}</div>
+                                                    </div>
+                                                ) : 'No diagnosis history'}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
