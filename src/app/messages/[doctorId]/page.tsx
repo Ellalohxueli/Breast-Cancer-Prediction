@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { DevToken, StreamChat } from "stream-chat";
+import { DevToken, StreamChat, Channel, DefaultGenerics } from "stream-chat";
 import { Button } from "@/components/ui/button";
 import { generateUsername } from "unique-username-generator";
 import useCheckCookies from "@/controller/UseCheckCookie";
@@ -70,7 +70,7 @@ const formatTime = (time: string) => {
 export default function DoctorChat() {
     const router = useRouter();
     const { doctorId } = useParams();
-    const [channel, setChannel] = useState<null>(null);
+    const [channel, setChannel] = useState<Channel<DefaultGenerics> | null>(null);
     const [chatClient, setChatClient] = useState<StreamChat | null>(null);
     const [messageText, setMessageText] = useState("");
     const [userRole, setUserRole] = useState<"doctor" | "user">("user");
@@ -100,6 +100,7 @@ export default function DoctorChat() {
         lastName: "",
         phone: "",
     });
+    const [error, setError] = useState<string | null>(null);
     const [profileSuccessMessage, setProfileSuccessMessage] = useState(false);
     const [passwordForm, setPasswordForm] = useState({
         currentPassword: "",

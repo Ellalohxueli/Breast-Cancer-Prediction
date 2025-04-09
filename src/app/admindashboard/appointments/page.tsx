@@ -478,8 +478,8 @@ export default function AppointmentsPage() {
                                                         return groups;
                                                     }, {} as Record<string, typeof filteredAppointments>);
 
-                                                    // Sort dates in ascending order
-                                                    const sortedDates = Object.keys(groupedAppointments).sort();
+                                                    // Sort dates in descending order
+                                                    const sortedDates = Object.keys(groupedAppointments).sort((a, b) => b.localeCompare(a));
 
                                                     return sortedDates.map((dateKey) => {
                                                         const appointmentsForDate = groupedAppointments[dateKey];

@@ -259,15 +259,15 @@ export default function PatientsPage() {
                     }))
                 });
 
-                // Sort completed appointments by start date in descending order
+                // Sort completed appointments by start date in ascending order (oldest to newest)
                 const completedAppointments = appointments
                     .filter((appt: any) => appt.status === 'Completed')
                     .sort((a: any, b: any) => 
-                        new Date(b.dateRange.startDate).getTime() - new Date(a.dateRange.startDate).getTime()
+                        new Date(a.dateRange.startDate).getTime() - new Date(b.dateRange.startDate).getTime()
                     );
                 
-                // Get the most recent completed appointment
-                const lastAppointment = completedAppointments[0];
+                // Get the most recent completed appointment (last one in the array)
+                const lastAppointment = completedAppointments[completedAppointments.length - 1];
                 console.log('Latest completed appointment details:', lastAppointment ? {
                     appointmentId: lastAppointment._id,
                     date: new Date(lastAppointment.dateRange.startDate).toLocaleDateString(),

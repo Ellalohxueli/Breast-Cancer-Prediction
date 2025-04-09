@@ -1738,7 +1738,7 @@ export default function DoctorDashboard() {
                                                 {selectedPatientForVisit.patientReports && 
                                                  selectedPatientForVisit.patientReports.length > 0 &&
                                                  selectedPatientForVisit.patientReports[0].report?.createdAt
-                                                    ? new Date(selectedPatientForVisit.patientReports[0].report.createdAt).toLocaleDateString('en-US', {
+                                                    ? new Date(selectedPatientForVisit.patientReports[0].report.createdAt.split('T')[0]).toLocaleDateString('en-US', {
                                                         year: 'numeric',
                                                         month: 'long',
                                                         day: 'numeric'
@@ -1749,74 +1749,91 @@ export default function DoctorDashboard() {
                                     </div>
                                 </div>
 
-                                {/* Recent Test Results */}
+                                {/* Patient Reports History */}
                                 <div className="mb-6">
                                     <h3 className={`text-lg font-medium mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                        Recent Test Results
+                                        Latest Report
                                     </h3>
                                     <div className="space-y-4">
                                         {selectedPatientForVisit.patientReports && selectedPatientForVisit.patientReports.length > 0 ? (
-                                            <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow`}>
-                                                <div className="flex items-center space-x-4 mb-4">
-                                                    <div className="relative w-24 h-24">
-                                                        {selectedPatientForVisit.patientReports[0].report?.mammograms && selectedPatientForVisit.patientReports[0].report.mammograms.length > 0 ? (
-                                                            <Image
-                                                                src={selectedPatientForVisit.patientReports[0].report.mammograms[0].image}
-                                                                alt="Mammogram"
-                                                                fill
-                                                                className="object-cover rounded-lg"
-                                                            />
-                                                        ) : (
-                                                            <div className={`w-full h-full flex items-center justify-center rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                                                                <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>N/A</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div>
-                                                        <p className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                                            {selectedPatientForVisit.patientReports[0].report?.mammograms && selectedPatientForVisit.patientReports[0].report.mammograms.length > 0 
-                                                                ? selectedPatientForVisit.patientReports[0].report.mammograms[0].predictionResult 
-                                                                : 'N/A'}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                                                    <p>{selectedPatientForVisit.patientReports[0].report?.description || 'No description available'}</p>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                No test results available
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Medications */}
-                                <div className="mb-6">
-                                    <h3 className={`text-lg font-medium mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                        Medications
-                                    </h3>
-                                    <div className={`space-y-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                                        {selectedPatientForVisit.patientReports && selectedPatientForVisit.patientReports.length > 0 ? (
-                                            <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow`}>
-                                                <div className="space-y-2">
-                                                    {selectedPatientForVisit.patientReports[0].report?.medications && selectedPatientForVisit.patientReports[0].report.medications.length > 0 ? (
-                                                        selectedPatientForVisit.patientReports[0].report.medications.map((medication, medIndex) => (
-                                                            <div key={medIndex} className="flex items-center space-x-2">
-                                                                <span className="text-sm">{medication}</span>
-                                                            </div>
-                                                        ))
-                                                    ) : (
-                                                        <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                            N/A
+                                            (() => {
+                                                // Get the latest report (last in the array)
+                                                const latestReport = selectedPatientForVisit.patientReports[selectedPatientForVisit.patientReports.length - 1];
+                                                return (
+                                                    <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} shadow`}>
+                                                        <div className="flex items-center justify-between mb-3">
+                                                            <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                                                Report Date: {latestReport.report?.createdAt ? new Date(latestReport.report.createdAt.split('T')[0]).toLocaleDateString('en-US', {
+                                                                    year: 'numeric',
+                                                                    month: 'long',
+                                                                    day: 'numeric'
+                                                                }) : 'Date not available'}
+                                                            </span>
                                                         </div>
-                                                    )}
-                                                </div>
-                                            </div>
+                                                        
+                                                        {/* Test Results */}
+                                                        <div className="mb-4">
+                                                            <h4 className={`text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                                Test Results
+                                                            </h4>
+                                                            <div className="flex items-center space-x-4">
+                                                                <div className="relative w-24 h-24">
+                                                                    {latestReport.report?.mammograms && latestReport.report.mammograms.length > 0 ? (
+                                                                        <Image
+                                                                            src={latestReport.report.mammograms[0].image}
+                                                                            alt="Mammogram"
+                                                                            fill
+                                                                            className="object-cover rounded-lg"
+                                                                        />
+                                                                    ) : (
+                                                                        <div className={`w-full h-full flex items-center justify-center rounded-lg ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                                                                            <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>No image</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <div>
+                                                                    <p className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                                                        {latestReport.report?.mammograms && latestReport.report.mammograms.length > 0 
+                                                                            ? latestReport.report.mammograms[0].predictionResult 
+                                                                            : 'No prediction result'}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Description */}
+                                                        <div className="mb-4">
+                                                            <h4 className={`text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                                Description
+                                                            </h4>
+                                                            <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                                                {latestReport.report?.description || 'No description available'}
+                                                            </p>
+                                                        </div>
+
+                                                        {/* Medications */}
+                                                        <div>
+                                                            <h4 className={`text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                                Medications
+                                                            </h4>
+                                                            <div className={`space-y-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                                                {latestReport.report?.medications && latestReport.report.medications.length > 0 ? (
+                                                                    latestReport.report.medications.map((medication, medIndex) => (
+                                                                        <div key={medIndex} className="flex items-center space-x-2">
+                                                                            <span className="text-sm">{medication}</span>
+                                                                        </div>
+                                                                    ))
+                                                                ) : (
+                                                                    <p className="text-sm">No medications prescribed</p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()
                                         ) : (
                                             <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                No medications recorded
+                                                No reports available
                                             </p>
                                         )}
                                     </div>
