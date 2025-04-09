@@ -44,18 +44,36 @@ export async function POST(request: Request) {
             }, { status: 404 });
         }
 
-        // Update appointment status
-        appointment.status = body.status === 'cancelled' ? 'Cancelled' : 'Rescheduled';
+        // Update appointment status based on notification status
+        if (body.status === 'completed') {
+            appointment.status = 'Completed';
+        } else if (body.status === 'cancelled') {
+            appointment.status = 'Cancelled';
+        } else if (body.status === 'rescheduled') {
+            appointment.status = 'Rescheduled';
+        }
         await appointment.save();
+
+        // Validate and normalize the status
+        let normalizedStatus = body.status;
+        if (normalizedStatus === 'completed') {
+            normalizedStatus = 'completed';
+        } else if (normalizedStatus === 'cancelled') {
+            normalizedStatus = 'cancelled';
+        } else if (normalizedStatus === 'rescheduled') {
+            normalizedStatus = 'rescheduled';
+        } else {
+            normalizedStatus = 'pending';
+        }
 
         // Create notification with proper ObjectId conversion
         const notification = await Notification.create({
             doctorId: new mongoose.Types.ObjectId(doctorId),
-            patientId: new mongoose.Types.ObjectId(body.patientId),
+            patientId: new mongoose.Types.ObjectId(appointment.patientId),
             appointmentDate: new Date(body.appointmentDate),
             appointmentDay: body.appointmentDay,
             appointmentTime: body.appointmentTime,
-            status: body.status
+            status: normalizedStatus
         });
 
         return NextResponse.json({ 

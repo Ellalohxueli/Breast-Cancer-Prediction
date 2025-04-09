@@ -26,7 +26,7 @@ const notificationSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['cancelled', 'rescheduled'],
+      enum: ['cancelled', 'rescheduled', 'completed', 'pending'],
       default: 'pending'
     },
     isRead: {

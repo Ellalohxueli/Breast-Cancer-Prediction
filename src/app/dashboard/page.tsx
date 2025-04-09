@@ -73,7 +73,7 @@ type NotificationData = {
     appointmentDate: string;
     appointmentDay: string;
     appointmentTime: string;
-    status: 'cancelled' | 'rescheduled';
+    status: 'cancelled' | 'rescheduled' | 'completed';
     isRead: boolean;
     createdAt: string;
     updatedAt: string;
