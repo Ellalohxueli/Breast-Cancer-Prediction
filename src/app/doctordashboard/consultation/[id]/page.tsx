@@ -164,7 +164,7 @@ export default function ConsultationPage() {
             }
         }));
     };
-
+    console.log("patientId", patientId);
     const handleDone = async () => {
         if (!consultationData.report.description.trim()) {
             setError('Please fill in the description before proceeding');
@@ -225,6 +225,31 @@ export default function ConsultationPage() {
                 const errorData = await response.json().catch(() => ({}));
                 console.error('Server response error:', errorData);
                 throw new Error(`Failed to save consultation: ${response.status} ${response.statusText}`);
+            }
+
+            // Create notification for completed appointment
+            const notificationData = {
+                appointmentId: patientId,
+                patientId: patientId,
+                appointmentDate: appointmentStartDate || new Date().toISOString(),
+                appointmentDay: appointmentDay || new Date().toLocaleDateString('en-US', { weekday: 'long' }),
+                appointmentTime: appointmentStartTime || new Date().toLocaleTimeString(),
+                status: 'completed'
+            };
+
+            try {
+                const notificationResponse = await fetch('/api/notifications', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(notificationData)
+                });
+
+                if (!notificationResponse.ok) {
+                    console.error('Failed to create notification:', await notificationResponse.text());
+                }
+            } catch (notificationError) {
+                console.error('Error creating notification:', notificationError);
+                // Continue with the process even if notification fails
             }
 
             // Update the appointment status to "Completed"
