@@ -311,10 +311,10 @@ export default function AdminDashboard() {
                         </button>
 
                         {/* Notifications */}
-                        <button className="relative">
+                        {/* <button className="relative">
                             <FiBell className={`w-5 h-5 ${isDarkMode ? "text-gray-200" : "text-gray-700"}`} />
                             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">3</span>
-                        </button>
+                        </button> */}
 
                         {/* Vertical Divider */}
                         <div className={`h-6 w-px ${isDarkMode ? "bg-gray-600" : "bg-gray-300"}`}></div>

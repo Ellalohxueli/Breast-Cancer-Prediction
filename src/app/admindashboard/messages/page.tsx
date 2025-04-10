@@ -436,9 +436,9 @@ export default function Messages() {
                         <p className={`text-base ${isDarkMode ? "text-gray-300" : "text-gray-600"}`}>{currentDate}</p>
                     </div>
 
-                    {/* Right Side Icons */}
+                    {/* Right Side Icons
                     <div className="flex items-center space-x-6">
-                        {/* Messages */}
+                        Messages
                         <button className="relative">
                             <FiMessageCircle className={`w-5 h-5 ${isDarkMode ? "text-gray-200" : "text-gray-700"}`} />
                             {unreadCount > 0 && (
@@ -446,17 +446,17 @@ export default function Messages() {
                             )}
                         </button>
 
-                        {/* Notifications */}
+                        Notifications
                         <button className="relative">
                             <FiBell className={`w-5 h-5 ${isDarkMode ? "text-gray-200" : "text-gray-700"}`} />
                             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">3</span>
                         </button>
 
-                        {/* Vertical Divider */}
+                       Vertical Divider 
                         <div className={`h-6 w-px ${isDarkMode ? "bg-gray-600" : "bg-gray-300"}`}></div>
 
                         <div className="flex items-center space-x-3">
-                            {/* Profile */}
+                             Profile 
                             <div className="flex items-center space-x-3 relative">
                                 <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="flex items-center space-x-3 focus:outline-none">
                                     <div className="w-8 h-8 rounded-full bg-pink-200 flex items-center justify-center">
@@ -472,7 +472,7 @@ export default function Messages() {
                                     </div>
                                 </button>
 
-                                {/* Dropdown Menu */}
+                                Dropdown Menu 
                                 {isProfileOpen && (
                                     <div
                                         className={`absolute right-0 top-full mt-2 w-48 rounded-lg shadow-lg py-1 ${
@@ -491,7 +491,7 @@ export default function Messages() {
                                 )}
                             </div>
                         </div>
-                    </div>
+                    </div> */}
                 </div>
 
                 <div className="flex p-4 pt-14 overflow-y-auto h-[100vh]">
