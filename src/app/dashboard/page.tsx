@@ -261,6 +261,10 @@ export default function DashboardPage() {
         fetchNotifications();
     }, [isDropdownOpen]);
 
+    useEffect(() => {
+        console.log('Notification count updated:', notificationCount);
+    }, [notificationCount]);
+
     const renderIcon = (iconName: string) => {
         const iconProps = { className: "h-8 w-8" };
         const iconMapping: { [key: string]: React.ReactElement } = {
@@ -607,33 +611,82 @@ export default function DashboardPage() {
         }
     };
 
+    // const handleNotificationClick = async (notification: NotificationData) => {
+    //     try {
+    //         // Only update if notification is unread
+    //         if (!notification.isRead) {
+                
+    //             const response = await axios.put('/api/notifications/read', {
+    //                 notificationId: notification._id
+    //             });
+
+    //             if (response.data.success) {
+    //                 // Update the notification in the local state
+    //                 setNotifications(prevNotifications => 
+    //                     prevNotifications.map(n => 
+    //                         n._id === notification._id 
+    //                             ? { ...n, isRead: true }
+    //                             : n
+    //                     )
+    //                 );
+
+    //                 // Update the notification count
+    //                 setNotificationCount(prev => Math.max(0, prev - 1));
+    //             }
+    //         }
+
+    //         // Set the selected notification and open modal
+    //         setSelectedNotification(notification);
+    //         setIsNotificationModalOpen(true);
+    //     } catch (error) {
+    //         console.error('Error updating notification read status:', error);
+    //     }
+    // };
     const handleNotificationClick = async (notification: NotificationData) => {
         try {
+            console.log('Notification clicked:', notification);
+    
             // Only update if notification is unread
             if (!notification.isRead) {
+                console.log('Marking notification as read:', notification._id);
                 
                 const response = await axios.put('/api/notifications/read', {
                     notificationId: notification._id
                 });
-
+    
                 if (response.data.success) {
+                    console.log('API response success. Updating local state.');
+    
                     // Update the notification in the local state
-                    setNotifications(prevNotifications => 
-                        prevNotifications.map(n => 
+                    setNotifications(prevNotifications => {
+                        const updatedNotifications = prevNotifications.map(n => 
                             n._id === notification._id 
                                 ? { ...n, isRead: true }
                                 : n
-                        )
-                    );
-
-                    // Update the notification count
-                    setNotificationCount(prev => Math.max(0, prev - 1));
+                        );
+                        console.log('Updated notifications array:', updatedNotifications);
+    
+                        // Recalculate the unread count based on the updated notifications
+                        const unreadCount = updatedNotifications.filter(n => !n.isRead).length;
+                        console.log('New unread count:', unreadCount);
+    
+                        // Update the notification count atomically
+                        setNotificationCount(unreadCount);
+    
+                        return updatedNotifications;
+                    });
+                } else {
+                    console.error('API response indicates failure:', response.data);
                 }
+            } else {
+                console.log('Notification is already marked as read. No action needed.');
             }
-
+    
             // Set the selected notification and open modal
             setSelectedNotification(notification);
             setIsNotificationModalOpen(true);
+    
+            console.log('Notification modal opened for:', notification._id);
         } catch (error) {
             console.error('Error updating notification read status:', error);
         }
@@ -660,7 +713,7 @@ export default function DashboardPage() {
     return (
         <div id="top" className={`min-h-screen bg-gray-50 ${poppins.className}`}>
             {/* Full width white navigation bar */}
-            <NavBar onProfileClick={handleProfileClick} onNotificationClick={handleNotificationClick} />
+            <NavBar onProfileClick={handleProfileClick} onNotificationClick={handleNotificationClick}/>
 
             {/* Hero Section */}
             <div className="relative h-[600px] w-full">
