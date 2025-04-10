@@ -288,7 +288,7 @@ export default function NavBar({ onProfileClick, onNotificationClick }: NavBarPr
                                                 <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
                                             </div>
 
-                                            <div className="max-h-96 overflow-y-auto">
+                                            <div className="h-[320px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-400">
                                                 {isLoadingNotifications ? (
                                                     <div className="flex items-center justify-center py-4">
                                                         <svg className="animate-spin h-5 w-5 text-gray-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
