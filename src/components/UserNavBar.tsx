@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { BiMessageRounded } from "react-icons/bi";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { FaRegUser, FaRegBell } from "react-icons/fa";
 import axios from "axios";
 import UseRemoveLocalStorage from "@/controller/UseRemoveLocalStorage";
@@ -45,46 +45,50 @@ export default function NavBar({ onProfileClick, onNotificationClick }: NavBarPr
 
     useCheckCookies();
 
-    useEffect(() => {
-        const fetchInitialNotifications = async () => {
-            try {
-                const response = await axios.get("/api/notifications");
-                if (response.data.success) {
-                    setNotifications(response.data.notifications);
-                    const unreadCount = response.data.notifications.filter((n: NotificationData) => !n.isRead).length;
-                    setNotificationCount(unreadCount);
+    const fetchAndUpdateNotifications = useCallback(async (updateCountOnly = false) => {
+        if (!updateCountOnly) setIsLoadingNotifications(true);
+        setNotificationError(null);
+        try {
+            const response = await axios.get("/api/notifications");
+            if (response.data.success) {
+                const fetchedNotifications = response.data.notifications as NotificationData[];
+                const unreadCount = fetchedNotifications.filter((n) => !n.isRead).length;
+                setNotificationCount(unreadCount);
+                if (!updateCountOnly) {
+                    setNotifications(fetchedNotifications);
                 }
-            } catch (error) {
-                console.error("Error fetching initial notifications:", error);
+            } else {
+                 throw new Error(response.data.message || "Failed to fetch notifications")
             }
-        };
-
-        fetchInitialNotifications();
+        } catch (error: any) {
+            console.error("Error fetching notifications:", error);
+             if (!updateCountOnly) {
+                 setNotificationError("Failed to load notifications");
+             } else {
+                 console.error("Error fetching notification count:", error);
+             }
+        } finally {
+             if (!updateCountOnly) setIsLoadingNotifications(false);
+        }
     }, []);
 
     useEffect(() => {
-        const fetchNotifications = async () => {
-            if (isDropdownOpen) {
-                setIsLoadingNotifications(true);
-                setNotificationError(null);
-                try {
-                    const response = await axios.get("/api/notifications");
-                    if (response.data.success) {
-                        setNotifications(response.data.notifications);
-                        const unreadCount = response.data.notifications.filter((n: NotificationData) => !n.isRead).length;
-                        setNotificationCount(unreadCount);
-                    }
-                } catch (error) {
-                    console.error("Error fetching notifications:", error);
-                    setNotificationError("Failed to load notifications");
-                } finally {
-                    setIsLoadingNotifications(false);
-                }
-            }
-        };
+        fetchAndUpdateNotifications();
+    }, [fetchAndUpdateNotifications]);
 
-        fetchNotifications();
-    }, [isDropdownOpen]);
+    useEffect(() => {
+        if (isDropdownOpen) {
+            fetchAndUpdateNotifications();
+        }
+    }, [isDropdownOpen, fetchAndUpdateNotifications]);
+
+    useEffect(() => {
+        const intervalId = setInterval(() => {
+            fetchAndUpdateNotifications(true);
+        }, 30000);
+
+        return () => clearInterval(intervalId);
+    }, [fetchAndUpdateNotifications]);
 
     const loadChatClient = async () => {
         const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY;
@@ -124,14 +128,17 @@ export default function NavBar({ onProfileClick, onNotificationClick }: NavBarPr
     };
 
     const handleNotificationClick = (notification: NotificationData) => {
+        if (!notification.isRead) {
+             setNotificationCount(prevCount => Math.max(0, prevCount - 1));
+        }
         onNotificationClick(notification);
+        setIsDropdownOpen(false);
     };
 
     const handleLogout = async () => {
         try {
             await axios.get("/api/users/logout");
 
-            // Use the hook here after the logout action
             UseRemoveLocalStorage();
 
             window.location.href = "/login";
