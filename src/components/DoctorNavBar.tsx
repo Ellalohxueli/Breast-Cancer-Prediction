@@ -72,7 +72,7 @@ export default function DoctorNavBar() {
 
         const filteredChannels = channels
             .filter((channel: any) => channel.id.includes(doctorId))
-            .filter((channel: any) => !channel.id.includes('admin'))
+            .filter((channel: any) => !channel.id.includes("admin"))
             .filter((channel: any) => channel.state.messages && channel.state.messages.length > 0);
 
         setUserChannelIds(filteredChannels.map((channel: any) => channel.id));
@@ -105,9 +105,9 @@ export default function DoctorNavBar() {
             const unreadCount = channels
                 .filter((channel: any) => channel.id.includes(doctorId))
                 .filter((channel: any) => channel.state.messages && channel.state.messages.length > 0)
-                .filter((channel: any) => !channel.data.isDoctorRead).length;
+                .filter((channel: any) => !channel.data.isDoctorRead);
 
-            setUnreadCount(unreadCount);
+            setUnreadCount(unreadCount.length);
         });
     };
 
@@ -136,19 +136,18 @@ export default function DoctorNavBar() {
     useEffect(() => {
         const fetchRemainingAppointments = async () => {
             try {
-                const response = await axios.get('/api/doctors/appointment');
+                const response = await axios.get("/api/doctors/appointment");
                 if (response.data.success) {
                     const appointments = response.data.appointments;
                     const today = new Date();
                     const remaining = appointments.filter((appointment: any) => {
                         const appointmentDate = new Date(appointment.dateRange.startDate);
-                        return appointmentDate.toDateString() === today.toDateString() && 
-                               (appointment.status === 'Booked' || appointment.status === 'Ongoing');
+                        return appointmentDate.toDateString() === today.toDateString() && (appointment.status === "Booked" || appointment.status === "Ongoing");
                     }).length;
                     setRemainingAppointments(remaining);
                 }
             } catch (error) {
-                console.error('Error fetching remaining appointments:', error);
+                console.error("Error fetching remaining appointments:", error);
             }
         };
 
