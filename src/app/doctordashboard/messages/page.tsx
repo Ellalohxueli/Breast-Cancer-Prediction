@@ -211,7 +211,7 @@ export default function Messages() {
                 adminChannel = channels[0];
 
                 await adminChannel.watch();
-                await adminChannel.updatePartial({ set: { isUserRead: true } });
+                await adminChannel.updatePartial({ set: { isDoctorRead: true } });
             } else {
                 const adminChannel = chatClient.channel("messaging", adminChannelId, {
                     isAdminRead: false,
