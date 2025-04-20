@@ -63,7 +63,7 @@ def predict_mammogram(image_data):
         confidence = prediction * 100 if prediction > 0.45 else (1 - prediction) * 100
         
         # Format the prediction result
-        result = f"Malignant ({confidence:.2f}% confidence)" if prediction > 0.5 else f"Benign ({confidence:.2f}% confidence)"
+        result = f"Malignant ({confidence:.2f}% confidence)" if prediction > 0.65 else f"Benign ({confidence:.2f}% confidence)"
         
         print(f"Final prediction: {result}", file=sys.stderr)
         
