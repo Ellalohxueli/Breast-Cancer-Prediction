@@ -15,6 +15,7 @@ import { FiSearch } from 'react-icons/fi';
 import useCheckCookies from '@/controller/UseCheckCookie';
 import axios from 'axios';
 import NavBar from '@/components/UserNavBar';
+import SessionOut from '@/components/SessionOut';
 
 const poppins = Poppins({
     weight: ['400', '500', '600', '700'],
@@ -490,6 +491,7 @@ export default function ServicesPage() {
         <div className={`flex flex-col min-h-screen bg-gray-50 ${poppins.className}`}>
             {/* Navigation Bar */}
             <NavBar onProfileClick={handleProfileClick} onNotificationClick={handleNotificationClick} />
+            <SessionOut />
 
             {/* Notification Detail Modal */}
             {isNotificationModalOpen && selectedNotification && (

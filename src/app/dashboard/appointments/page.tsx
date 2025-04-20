@@ -12,6 +12,7 @@ import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import NavBar from '@/components/UserNavBar';
 import jsPDF from 'jspdf';
+import SessionOut from '@/components/SessionOut';
 
 const poppins = Poppins({
     weight: ['400', '500', '600', '700'],
@@ -927,6 +928,7 @@ export default function AppointmentsPage() {
         <div className={`min-h-screen bg-gray-50 ${poppins.className}`}>
             {/* Full width white navigation bar */}
             <NavBar onProfileClick={handleProfileClick} onNotificationClick={handleNotificationClick} />
+            <SessionOut />
 
             {/* Main Content Area */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

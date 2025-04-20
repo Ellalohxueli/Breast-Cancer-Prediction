@@ -11,6 +11,7 @@ import { toast } from "react-hot-toast";
 import DoctorNavBar from '@/components/DoctorNavBar';
 import useCheckCookies from '@/controller/UseCheckCookie';
 import UseRemoveLocalStorage from '@/controller/UseRemoveLocalStorage';
+import SessionOut from '@/components/SessionOut';
 
 const poppins = Poppins({
     weight: ['400', '500', '600', '700'],
@@ -587,6 +588,7 @@ export default function PatientsPage() {
         <div className={`min-h-screen bg-gray-100 ${poppins.className}`}>
             {/* Sidebar - Fixed */}
             <DoctorNavBar />
+            <SessionOut />
 
             {/* Main Content */}
             <div className="ml-64">

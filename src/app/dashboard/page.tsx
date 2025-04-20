@@ -26,6 +26,7 @@ import { FaXRay, FaCalendar, FaVial, FaNotesMedical, FaFirstAid, FaPrescription,
 import { FiSearch } from 'react-icons/fi';
 import { FaClock } from 'react-icons/fa';
 import NavBar from '@/components/UserNavBar';
+import SessionOut from '@/components/SessionOut';
 
 const poppins = Poppins({
     weight: ['400', '500', '600', '700'],
@@ -714,6 +715,7 @@ export default function DashboardPage() {
         <div id="top" className={`min-h-screen bg-gray-50 ${poppins.className}`}>
             {/* Full width white navigation bar */}
             <NavBar onProfileClick={handleProfileClick} onNotificationClick={handleNotificationClick}/>
+            <SessionOut />
 
             {/* Hero Section */}
             <div className="relative h-[600px] w-full">

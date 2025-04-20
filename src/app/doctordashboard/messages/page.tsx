@@ -11,6 +11,7 @@ import { FaRegUser } from "react-icons/fa";
 import LiveChat from "@/components/LiveChat";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import SessionOut from "@/components/SessionOut";
 
 const poppins = Poppins({
     weight: ["400", "500", "600", "700"],
@@ -232,6 +233,7 @@ export default function Messages() {
     return (
         <div className={`min-h-screen bg-gray-50 ${poppins.className}`}>
             <DoctorNavBar />
+            <SessionOut />
 
             <div className="flex h-[100vh] ml-64">
                 <div className="w-2/5 bg-white p-4 border-r h-full overflow-y-auto">
