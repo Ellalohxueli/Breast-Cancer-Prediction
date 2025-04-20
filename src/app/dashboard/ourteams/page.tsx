@@ -12,6 +12,7 @@ import axios from "axios";
 import useCheckCookies from "@/controller/UseCheckCookie";
 import { FaCalendar } from "react-icons/fa";
 import NavBar from "@/components/UserNavBar";
+import SessionOut from "@/components/SessionOut";
 
 const poppins = Poppins({
     weight: ["400", "500", "600", "700"],
@@ -480,6 +481,7 @@ export default function OurTeamsPage() {
     return (
         <div className={`min-h-screen bg-gray-50 ${poppins.className}`}>
             <NavBar onProfileClick={handleProfileClick} onNotificationClick={handleNotificationClick} />
+            <SessionOut />
 
             {/* Hero Section */}
             <div className="bg-gradient-to-r from-gray-50 to-white">

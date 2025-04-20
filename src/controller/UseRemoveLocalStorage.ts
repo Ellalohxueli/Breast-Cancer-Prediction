@@ -8,6 +8,8 @@ const UseRemoveLocalStorage = () => {
     sessionStorage.removeItem("token");
 
     localStorage.removeItem("userType");
+
+    localStorage.removeItem("count");
 };
 
 export default UseRemoveLocalStorage;

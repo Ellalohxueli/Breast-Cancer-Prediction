@@ -10,6 +10,7 @@ import Link from "next/link";
 import useCheckCookies from "@/controller/UseCheckCookie";
 import axios from "axios";
 import NavBar from "@/components/UserNavBar";
+import SessionOut from "@/components/SessionOut";
 
 const poppins = Poppins({
     weight: ["400", "500", "600", "700"],
@@ -661,6 +662,7 @@ export default function ResourcesPage() {
         <div id="top" className={`min-h-screen bg-gray-50 ${poppins.className}`}>
             {/* Header */}
             <NavBar onProfileClick={handleProfileClick} onNotificationClick={handleNotificationClick} />
+            <SessionOut />
 
             {/* Hero Section */}
             <div className="bg-gradient-to-b from-pink-50 to-white pt-12 pb-8">

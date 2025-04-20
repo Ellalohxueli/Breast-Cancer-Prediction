@@ -12,6 +12,7 @@ import { FaRegUser } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import UseRemoveLocalStorage from '@/controller/UseRemoveLocalStorage';
 import DoctorNavBar from '@/components/DoctorNavBar';
+import SessionOut from '@/components/SessionOut';
 
 const poppins = Poppins({
     weight: ['400', '500', '600', '700'],
@@ -811,6 +812,7 @@ export default function DoctorDashboard() {
         <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'} ${poppins.className}`}>
             {/* Sidebar - Fixed */}
             <DoctorNavBar />
+            <SessionOut />
 
             {/* Main Content */}
             <div className="ml-64">

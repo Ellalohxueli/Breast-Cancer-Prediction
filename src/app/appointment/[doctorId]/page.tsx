@@ -11,6 +11,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { start } from "repl";
 import NavBar from "@/components/UserNavBar";
+import SessionOut from "@/components/SessionOut";
 
 const poppins = Poppins({
     weight: ["400", "500", "600", "700"],
@@ -533,6 +534,7 @@ export default function AppointmentPage() {
     return (
         <div className={`min-h-screen bg-gray-50 ${poppins.className}`}>
             <NavBar onProfileClick={handleProfileClick} onNotificationClick={handleNotificationClick} />
+            <SessionOut />
 
             {/* Return Section */}
             <div className="text-white py-4 px-8">

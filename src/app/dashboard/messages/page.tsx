@@ -14,6 +14,7 @@ import Image from "next/image";
 import { generateUsername } from "unique-username-generator";
 import axios from "axios";
 import { FaRegBell, FaRegUser, FaCalendar, FaClock, FaStar } from "react-icons/fa";
+import SessionOut from "@/components/SessionOut";
 
 const poppins = Poppins({
     weight: ["400", "500", "600", "700"],
@@ -500,6 +501,7 @@ export default function Messages() {
     return (
         <div className={`min-h-screen bg-gray-50 ${poppins.className}`}>
             <NavBar onProfileClick={handleProfileClick} onNotificationClick={handleNotificationClick} />
+            <SessionOut />
 
             <div className="flex h-[93vh]">
                 <div className="w-2/5 bg-white p-4 border-r h-full overflow-y-auto">

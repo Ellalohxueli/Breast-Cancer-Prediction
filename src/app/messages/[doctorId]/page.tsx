@@ -14,6 +14,7 @@ import LiveChat from "@/components/LiveChat";
 import { set } from "mongoose";
 import axios from "axios";
 import { FaRegBell, FaRegUser, FaCalendar, FaClock, FaStar } from "react-icons/fa";
+import SessionOut from "@/components/SessionOut";
 
 const poppins = Poppins({
     weight: ["400", "500", "600", "700"],
@@ -417,6 +418,7 @@ export default function DoctorChat() {
     return (
         <div className={`min-h-screen bg-gray-50 ${poppins.className}`}>
             <NavBar onProfileClick={handleProfileClick} onNotificationClick={handleNotificationClick} />
+            <SessionOut />
 
             <div className="flex h-full p-15 gap-20">
                 {/* Left Section - Doctor Details */}
