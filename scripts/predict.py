@@ -6,7 +6,8 @@ import json
 import base64
 import re
 import os
-from tensorflow.keras.applications.densenet import preprocess_input
+# from tensorflow.keras.applications.densenet import preprocess_input
+from tensorflow.keras.applications.resnet50 import preprocess_input
 
 # Suppress TensorFlow logging
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -60,10 +61,10 @@ def predict_mammogram(image_data):
         print(f"Raw prediction value: {prediction}", file=sys.stderr)
         
         # Calculate confidence based on the new formula
-        confidence = prediction * 100 if prediction > 0.45 else (1 - prediction) * 100
+        confidence = prediction * 100 if prediction > 0.7 else (1 - prediction) * 100
         
         # Format the prediction result
-        result = f"Malignant ({confidence:.2f}% confidence)" if prediction > 0.5 else f"Benign ({confidence:.2f}% confidence)"
+        result = f"Malignant ({confidence:.2f}% confidence)" if prediction > 0.7 else f"Benign ({confidence:.2f}% confidence)"
         
         print(f"Final prediction: {result}", file=sys.stderr)
         
